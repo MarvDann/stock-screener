@@ -51,16 +51,22 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     url.searchParams.set("apikey", this.apiKey);
 
     const response = await fetch(url);
-    const body = await response.json();
 
     if (!response.ok) {
-      const message =
-        (body as { "Error Message"?: string })["Error Message"] ?? response.statusText;
+      let message: string = response.statusText;
+      try {
+        const errorBody = await response.json();
+        message = (errorBody as { "Error Message"?: string })["Error Message"] ?? response.statusText;
+      } catch {
+        // Non-JSON error body (e.g. HTML from a proxy, empty body on timeout) —
+        // fall back to statusText rather than letting a raw SyntaxError escape.
+      }
       throw new Error(`FMP request failed for ${symbol}: ${message}`);
     }
 
-    const raw = body as FmpDailyBar[];
+    const raw = (await response.json()) as FmpDailyBar[];
     const bars: DailyBar[] = raw
+      .filter((bar) => bar.open != null && bar.high != null && bar.low != null && bar.close != null)
       .slice()
       .reverse()
       .map((bar) => ({
