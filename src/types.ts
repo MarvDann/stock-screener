@@ -36,20 +36,33 @@ export interface MarketDataProvider {
  */
 export interface BreakoutScreenResult {
   symbol: string;
-  passesTrendTemplate: boolean;
-  isConsolidating: boolean;
-  isBreakingOut: boolean;
+  state: "triggered" | "approaching";
   details: {
     close: number;
-    sma50: number;
     sma150: number;
-    sma200: number;
-    sma200SlopePositive: boolean;
-    pctOff52wHigh: number;
+    /** (sma150 - close) / sma150 * 100. Negative once price is above the SMA. */
+    pctBelowSma150: number;
     rangeContractionPct: number; // recent range as % of price, lower = tighter
-    volumeRatio: number; // today's volume vs avg volume
-    pivotHigh: number; // high of the consolidation range being broken
+    volumeRatio: number; // today's volume vs its average
+    /** Trading days since the MA150 cross (0 = today). Null when state is "approaching". */
+    daysSinceCross: number | null;
   };
+}
+
+/** A breakout screen result plus enough recent bars to chart it client-side. */
+export interface Candidate extends BreakoutScreenResult {
+  bars: DailyBar[];
+}
+
+export interface BreakoutScanResponse {
+  triggered: Candidate[];
+  approaching: Candidate[];
+  warnings: string[];
+}
+
+export interface SectorRotationScanResponse {
+  results: SectorRotationResult[];
+  warnings: string[];
 }
 
 /**

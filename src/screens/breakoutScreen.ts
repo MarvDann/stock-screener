@@ -1,32 +1,61 @@
 import { BreakoutScreenResult, SymbolHistory } from "../types";
-import { sma, isSmaSlopePositive, pctOffHigh, highestHigh } from "../indicators/movingAverage";
-import { rangeContractionPct, isVolatilityContracting, volumeRatio } from "../indicators/volatility";
+import { sma } from "../indicators/movingAverage";
+import { isVolatilityContracting, rangeContractionPct, volumeRatio } from "../indicators/volatility";
 
 export interface BreakoutScreenConfig {
-  /** Bars to look at for the "tight" consolidation window. Default 15 trading days. */
+  /** Bars in the "tight" consolidation window used by the heartbeat check. Default 15 trading days. */
   consolidationPeriod: number;
-  /** Prior window to compare against to confirm contraction. Default 40 trading days. */
+  /** Prior window compared against to confirm contraction. Default 40 trading days. */
   priorPeriod: number;
-  /** Max allowed distance below 52-week high to still be considered "near the top". Default 25%. */
-  maxPctOffHigh: number;
-  /** Minimum volume multiple vs average to count as a real breakout. Default 1.4x. */
-  minBreakoutVolumeRatio: number;
-  /** Lookback for average volume baseline. Default 50 trading days. */
+  /** Max distance below the 150-day SMA, as a percent, to count as "approaching". Default 5. */
+  approachingThresholdPct: number;
+  /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 1.4x. */
+  minTriggerVolumeRatio: number;
+  /** Lookback for the average-volume baseline used by the trigger's volume check. Default 20 trading days. */
   volumeAvgPeriod: number;
+  /** How many trailing trading days (including today) to look back for the MA150 cross. Default 3. */
+  crossLookbackDays: number;
 }
 
 export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
   consolidationPeriod: 15,
   priorPeriod: 40,
-  maxPctOffHigh: 25,
-  minBreakoutVolumeRatio: 1.4,
-  volumeAvgPeriod: 50,
+  approachingThresholdPct: 5,
+  minTriggerVolumeRatio: 1.4,
+  volumeAvgPeriod: 20,
+  crossLookbackDays: 3,
 };
 
 /**
- * Runs the Stage-2 trend template + volatility-contraction + breakout screen
- * against one symbol's history. Requires at least ~220 trading days of bars
- * for the 200-day SMA and slope check to be meaningful.
+ * Finds the most recent trading day, within the last `lookbackDays` days
+ * (inclusive of `endIndex`), on which the close crossed from at-or-below
+ * the 150-day SMA to above it. Returns null if price isn't above the SMA
+ * today, or no such crossing occurred in the window.
+ */
+function findCrossDayIndex(
+  bars: SymbolHistory["bars"],
+  endIndex: number,
+  lookbackDays: number
+): number | null {
+  const todaySma = sma(bars, 150, endIndex);
+  if (isNaN(todaySma) || bars[endIndex].close <= todaySma) return null;
+
+  for (let d = endIndex; d > endIndex - lookbackDays && d - 1 >= 0; d--) {
+    const smaAtD = sma(bars, 150, d);
+    const smaAtPrev = sma(bars, 150, d - 1);
+    if (isNaN(smaAtD) || isNaN(smaAtPrev)) continue;
+    if (bars[d].close > smaAtD && bars[d - 1].close <= smaAtPrev) {
+      return d;
+    }
+  }
+  return null;
+}
+
+/**
+ * Runs the breakout screen against one symbol's history using the
+ * 150-day SMA cross definition. Requires at least 150 bars to compute the
+ * SMA at all; returns null below that (naturally means "no state" once
+ * enough bars exist and none of the conditions hold, too).
  */
 export function runBreakoutScreen(
   history: SymbolHistory,
@@ -34,103 +63,76 @@ export function runBreakoutScreen(
 ): BreakoutScreenResult | null {
   const { bars, symbol } = history;
   const endIndex = bars.length - 1;
-
-  if (endIndex < 220) {
-    // Not enough history for a reliable 200-day SMA + slope check.
-    return null;
-  }
+  const sma150 = sma(bars, 150, endIndex);
+  if (isNaN(sma150)) return null;
 
   const close = bars[endIndex].close;
-  const sma50 = sma(bars, 50, endIndex);
-  const sma150 = sma(bars, 150, endIndex);
-  const sma200 = sma(bars, 200, endIndex);
-  const sma200SlopePositive = isSmaSlopePositive(bars, 200, 20, endIndex);
-  const pctOff52wHigh = pctOffHigh(bars, 252, endIndex);
+  const pctBelowSma150 = ((sma150 - close) / sma150) * 100;
 
-  // Stage 2 trend template (Minervini-style).
-  const passesTrendTemplate =
-    close > sma150 &&
-    close > sma200 &&
-    sma150 > sma200 &&
-    sma200SlopePositive &&
-    close > sma50 &&
-    pctOff52wHigh <= config.maxPctOffHigh;
+  const crossDayIndex = findCrossDayIndex(bars, endIndex, config.crossLookbackDays);
+  if (crossDayIndex !== null) {
+    const heartbeatAnchor = crossDayIndex - 1;
+    const isConsolidating = isVolatilityContracting(
+      bars,
+      config.consolidationPeriod,
+      config.priorPeriod,
+      heartbeatAnchor
+    );
+    const volRatio = volumeRatio(bars, config.volumeAvgPeriod, endIndex);
 
-  // Volatility contraction ("heartbeat") over the recent window vs prior window.
-  const isConsolidating = isVolatilityContracting(
-    bars,
-    config.consolidationPeriod,
-    config.priorPeriod,
-    endIndex
-  );
+    if (isConsolidating && volRatio >= config.minTriggerVolumeRatio) {
+      return {
+        symbol,
+        state: "triggered",
+        details: {
+          close,
+          sma150,
+          pctBelowSma150,
+          rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, heartbeatAnchor),
+          volumeRatio: volRatio,
+          daysSinceCross: endIndex - crossDayIndex,
+        },
+      };
+    }
+  }
 
-  // Breakout trigger: close above the high of the consolidation range, on volume.
-  // Pivot is the high of the consolidation window *excluding* today's bar.
-  const pivotHigh = highestHigh(bars, config.consolidationPeriod, endIndex - 1);
-  const volRatio = volumeRatio(bars, config.volumeAvgPeriod, endIndex);
-  const isBreakingOut =
-    close > pivotHigh && volRatio >= config.minBreakoutVolumeRatio;
+  const isApproaching =
+    close < sma150 &&
+    pctBelowSma150 <= config.approachingThresholdPct &&
+    isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex);
 
-  return {
-    symbol,
-    passesTrendTemplate,
-    isConsolidating,
-    isBreakingOut: passesTrendTemplate && isConsolidating && isBreakingOut,
-    details: {
-      close,
-      sma50,
-      sma150,
-      sma200,
-      sma200SlopePositive,
-      pctOff52wHigh,
-      rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, endIndex),
-      volumeRatio: volRatio,
-      pivotHigh,
-    },
-  };
+  if (isApproaching) {
+    return {
+      symbol,
+      state: "approaching",
+      details: {
+        close,
+        sma150,
+        pctBelowSma150,
+        rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, endIndex),
+        volumeRatio: volumeRatio(bars, config.volumeAvgPeriod, endIndex),
+        daysSinceCross: null,
+      },
+    };
+  }
+
+  return null;
 }
 
 /**
- * Runs the breakout screen across many symbols and returns only the ones
- * flagged as a full breakout (trend template + consolidation + trigger all pass).
+ * Runs the breakout screen across many symbols and splits the qualifying
+ * results into triggered vs. approaching buckets.
  */
-export function scanForBreakouts(
+export function scanBreakoutScreen(
   histories: SymbolHistory[],
   config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG
-): BreakoutScreenResult[] {
-  return histories
+): { triggered: BreakoutScreenResult[]; approaching: BreakoutScreenResult[] } {
+  const results = histories
     .map((h) => runBreakoutScreen(h, config))
-    .filter((r): r is BreakoutScreenResult => r !== null && r.isBreakingOut);
-}
+    .filter((r): r is BreakoutScreenResult => r !== null);
 
-export interface NearBreakoutCandidate extends BreakoutScreenResult {
-  /**
-   * % distance from the current close up to the pivot. 0 or negative means
-   * the close is already at/above the pivot (i.e. it has triggered, or
-   * missed the volume confirmation needed to count as a full breakout).
-   */
-  proximityToPivotPct: number;
-}
-
-/**
- * Finds symbols that pass the trend template and are consolidating, but
- * haven't (yet) triggered a confirmed breakout — i.e. candidates worth
- * watching. Ranked by how close price is to the pivot (closest first).
- */
-export function scanForNearBreakouts(
-  histories: SymbolHistory[],
-  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG,
-  maxCandidates = 10
-): NearBreakoutCandidate[] {
-  const candidates: NearBreakoutCandidate[] = histories
-    .map((h) => runBreakoutScreen(h, config))
-    .filter((r): r is BreakoutScreenResult => r !== null && r.passesTrendTemplate && r.isConsolidating)
-    .map((r) => ({
-      ...r,
-      proximityToPivotPct: ((r.details.pivotHigh - r.details.close) / r.details.pivotHigh) * 100,
-    }));
-
-  return candidates
-    .sort((a, b) => a.proximityToPivotPct - b.proximityToPivotPct)
-    .slice(0, maxCandidates);
+  return {
+    triggered: results.filter((r) => r.state === "triggered"),
+    approaching: results.filter((r) => r.state === "approaching"),
+  };
 }
