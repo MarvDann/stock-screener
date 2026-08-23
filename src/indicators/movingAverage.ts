@@ -14,22 +14,6 @@ export function sma(bars: DailyBar[], period: number, endIndex = bars.length - 1
 }
 
 /**
- * Whether the SMA has been trending up over the last `windowDays`.
- * Compares the current SMA to the SMA value `windowDays` ago.
- */
-export function isSmaSlopePositive(
-  bars: DailyBar[],
-  period: number,
-  windowDays: number,
-  endIndex = bars.length - 1
-): boolean {
-  const current = sma(bars, period, endIndex);
-  const past = sma(bars, period, endIndex - windowDays);
-  if (isNaN(current) || isNaN(past)) return false;
-  return current > past;
-}
-
-/**
  * Highest high over the last `period` bars (inclusive of endIndex).
  */
 export function highestHigh(bars: DailyBar[], period: number, endIndex = bars.length - 1): number {
@@ -51,15 +35,4 @@ export function lowestLow(bars: DailyBar[], period: number, endIndex = bars.leng
     min = Math.min(min, bars[i].low);
   }
   return min;
-}
-
-/**
- * % distance of the current close below its N-day high (52-week high, etc).
- * 0 = at the high, positive = below it.
- */
-export function pctOffHigh(bars: DailyBar[], period: number, endIndex = bars.length - 1): number {
-  const high = highestHigh(bars, period, endIndex);
-  const close = bars[endIndex].close;
-  if (high <= 0) return NaN;
-  return ((high - close) / high) * 100;
 }
