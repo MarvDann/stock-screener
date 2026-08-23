@@ -12,14 +12,10 @@ A local web app, run on-demand, with two screens over daily EOD data:
    150-day SMA (within the last 3 trading days) after a tight
    consolidation ("heartbeat") on above-average volume ("Triggered"),
    plus stocks still consolidating just below their 150-day SMA and
-   within 5% of it ("Approaching"). This replaced an earlier
-   Minervini-style Stage-2 trend-template + prior-range-high-breakout
-   definition — see "Breakout screen redefinition" below for why and
-   when.
+   within 5% of it ("Approaching").
 2. **Sector rotation screen** — ranks the 11 SPDR sector ETFs by relative
    strength vs SPY (1m/3m/6m) plus a simple accumulation/distribution
    money-flow read, as a proxy for where institutional money is rotating.
-   Unchanged since the original CLI version.
 
 The frontend is Vue 3 (Composition API, `<script setup>`) + Vite +
 vue-router, styled with a dark, Trading212-inspired theme. It talks to a
@@ -29,95 +25,60 @@ server and the Vite dev server together, and the app is used by opening
 a browser to `http://localhost:5173`. See `README.md` for day-to-day
 usage.
 
-## Immediate next step: plug in the FMP data provider
+## Immediate next step: implement the FMP data provider
 
-**This is what the next session should do.** The user has signed up for
-Financial Modeling Prep's (FMP) free tier and has an API key ready. The
-data layer was deliberately built as an interface for exactly this swap
-— see "Why things are built the way they are" below — so this should be
-a contained, mechanical piece of work, not a redesign.
+**This is what the next session should do.** The design and implementation
+plan for this are both already written and committed — this session's job
+is to execute the plan, not to re-derive it:
 
-### What to build
+- **Spec:** `docs/superpowers/specs/2026-08-23-fmp-provider-design.md`
+- **Plan:** `docs/superpowers/plans/2026-08-23-fmp-provider-implementation.md`
+  (5 tasks, fully detailed with exact code/commands — use
+  `superpowers:subagent-driven-development` or `superpowers:executing-plans`
+  to run it)
 
-1. **`src/data/fmpProvider.ts`** — a new class implementing
-   `MarketDataProvider` (`src/types.ts`), mirroring the shape of
-   `src/data/yahooProvider.ts` (`getDailyHistory(symbol, lookbackDays)`
-   and a `getManyDailyHistories(symbols, lookbackDays, batchSize?,
-   delayMs?)` convenience method with the same per-symbol
-   try/catch-and-return-empty-bars failure handling — `src/server.ts`
-   already relies on empty `bars` arrays to build its `warnings` list,
-   so preserve that contract exactly).
-2. **Endpoint**: FMP's free tier gives you the historical daily price
-   endpoint, roughly:
-   `https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}?apikey={key}`
-   returning `{ symbol, historical: [{ date, open, high, low, close,
-   volume, ... }, ...] }`. **Important gotcha**: FMP returns this array
-   **newest-first** — `SymbolHistory.bars` is documented (and everywhere
-   assumed, e.g. by `sma()`/`highestHigh()`/etc. in `indicators/`) to be
-   **oldest-first**. Reverse the array before mapping to `DailyBar[]`, or
-   every indicator calculation will be silently wrong (this is the kind
-   of bug that wouldn't throw — it'd just quietly produce nonsense SMA
-   values, so verify with a manual sanity check, not just a type-check).
-3. **API key handling**: don't hardcode it or commit it. Recommended:
-   a `.env` file at the project root (`FMP_API_KEY=...`), **added to
-   `.gitignore`** before it's created, loaded via Node's built-in
-   `--env-file=.env` flag (Node 20.6+ — this repo runs on v24, confirmed
-   available, no need to add a `dotenv` dependency). That means updating
-   the `dev:server`/`start` scripts in `package.json` to pass
-   `--env-file=.env` through to `tsx`/`node`. Read the key in
-   `fmpProvider.ts` via `process.env.FMP_API_KEY`, and fail fast with a
-   clear error if it's missing rather than silently making unauthenticated
-   requests.
-4. **Swap the import** in `src/server.ts`: change
-   `new YahooMarketDataProvider()` to `new FmpMarketDataProvider()` (or
-   whatever you name it). Nothing else in `server.ts`, the screens, or
-   the indicators should need to change — that's the whole point of the
-   `MarketDataProvider` interface.
-5. **Free-tier budget awareness**: FMP's free tier is capped at
-   **250 requests/day**, and there's no bulk endpoint on this tier (that
-   needs FMP Ultimate, $149/mo — not happening yet). One full scan
-   (breakout screen's ~32-symbol `SAMPLE_UNIVERSE` + sector rotation's 11
-   ETFs + 1 SPY benchmark) is currently **~44 calls**. That leaves some
-   room for a handful of manual test runs per day but not unlimited
-   iteration — don't loop `pnpm run dev` refreshes carelessly while
-   debugging the new provider, and consider testing against 1-2 symbols
-   directly first (a throwaway script like the `debug-mp.ts` pattern used
-   earlier this session — see the git log for `feat: redefine breakout
-   screen around 150-day SMA cross` era commits for that pattern, though
-   the script itself wasn't committed) before wiring it into the full app
-   and burning a full-scan's worth of calls on every reload.
-6. **Rate limiting**: replicate `yahooProvider.ts`'s batching pattern
-   (`batchSize`/`delayMs` between batches in `getManyDailyHistories`) —
-   FMP likely also throttles per-minute, not just per-day, so don't fire
-   all ~44 requests concurrently.
+Nothing has been implemented yet — `src/data/` still only has
+`yahooProvider.ts`. What's already done, so the new session doesn't repeat
+it:
+
+- **The API was researched live.** `HANDOFF.md` previously pointed at FMP's
+  legacy `v3` endpoint. That's wrong / stale — a live test call against the
+  user's actual free-tier key (during the design session) confirmed FMP's
+  current API is a separate `stable` namespace:
+  `GET https://financialmodelingprep.com/stable/historical-price-eod/full?symbol={symbol}&from={YYYY-MM-DD}&to={YYYY-MM-DD}&apikey={key}`,
+  returning a **flat JSON array**, **newest-first** (not nested under
+  `historical` like the legacy shape). See the spec doc for the full
+  confirmed response example and field list. The plan's Task 2 already
+  contains the correct, tested-against-the-shape implementation.
+- **`.env` already exists** at the project root, is already gitignored, and
+  already has `FMP_API_KEY` populated (the user added it directly — no
+  session has read or displayed the key value, by design). Nothing more
+  needed here except the `--env-file=.env` wiring in `package.json`
+  (plan Task 1).
+- **Budget spent so far:** 1 of FMP's 250 daily requests, from the live
+  research call above. Plan Task 2's smoke test spends 1 more; Task 4's
+  end-to-end check spends ~44 more (one full scan). Budget-conscious, not
+  exhausted — but don't loop test runs carelessly.
+- **Open decision from the original handoff was resolved:** keep
+  `YahooMarketDataProvider` as an explicit, env-selectable fallback
+  (`DATA_PROVIDER=yahoo`, default `fmp`) rather than deleting it — this was
+  an explicit user choice made during design, already reflected in the plan.
 
 ### Verification approach
 
 Same as the rest of this project: no automated test framework (deliberate
-choice, see "Testing / verification" in
-`docs/superpowers/specs/2026-08-23-web-frontend-design.md` if it's still
-present, or just follow the existing pattern) — `tsc --noEmit` for
-type-checking, plus manually running the app and confirming both `/api/breakout`
-and `/api/sector-rotation` return sane data through the new provider.
-Compare a couple of symbols' output against the current Yahoo-backed output
-before fully cutting over, to catch any silent data-shape mismatches (the
-reversed-array gotcha above being the most likely one).
-
-### Open decision for next session
-
-Whether to keep `YahooMarketDataProvider` around as a fallback/alternative
-(e.g. selectable via an env var) or just delete it once FMP is confirmed
-working. No strong opinion was set on this — ask the user, or default to
-just replacing it cleanly (YAGNI) unless there's a reason to keep both.
+choice) — `tsc --noEmit` for type-checking, plus the plan's Task 4 manual
+end-to-end check (`/api/breakout` and `/api/sector-rotation` against real
+FMP data, spot-compared against the Yahoo provider for a couple of
+symbols). Full detail is in the plan doc — follow it as written rather than
+re-deriving verification steps.
 
 ## Why things are built the way they are
 
 - **Data layer is an interface (`MarketDataProvider` in `types.ts`), not
   a concrete dependency.** Everything downstream (indicators, screens,
-  the API server) only depends on that interface. This was deliberate:
-  the free `yahoo-finance2` tier was for experimentation, with FMP as the
-  intended upgrade once the screen logic was validated — see "Immediate
-  next step" above, that day has arrived.
+  the API server) only depends on that interface. This is what made the
+  FMP swap a contained, mechanical plan rather than a redesign.
 - **`yahoo-finance2` is pinned to v4**, not v2 (which is EOL). The v4 API
   requires an instantiated `new YahooFinance()` client and an explicit
   `return: "array"` on `.chart()` calls.
@@ -169,21 +130,20 @@ None of this needs re-litigating; it's settled and gone.
   data**, not just synthetic smoke tests — confirmed real "Approaching"
   candidates (e.g. HD, COST, PG, PEP, QCOM on 2026-08-23) with
   internally-consistent metrics, and diagnosed a specific real case
-  (MP Materials, ticker `MP`, added to `SAMPLE_UNIVERSE` mid-session) that
-  correctly falls into neither bucket: it crossed above its MA150 on
-  light volume (1.14x vs. the 1.4x minimum) — the volume gate correctly
-  excluded an unconfirmed cross, and it can't be "Approaching" either
-  since it's already above the SMA post-cross. That's the volume filter
-  doing its job, not a bug — but it's a real product gap worth knowing
-  about: there's currently no third bucket for "crossed but not yet
+  (MP Materials, ticker `MP`, added to `SAMPLE_UNIVERSE`) that correctly
+  falls into neither bucket: it crossed above its MA150 on light volume
+  (1.14x vs. the 1.4x minimum) — the volume gate correctly excluded an
+  unconfirmed cross, and it can't be "Approaching" either since it's
+  already above the SMA post-cross. That's the volume filter doing its
+  job, not a bug — but it's a real product gap worth knowing about:
+  there's currently no third bucket for "crossed but not yet
   volume-confirmed." Not changed per explicit user decision
   ("leave for now") — revisit if it comes up again.
-- **`SAMPLE_UNIVERSE` in `universe.ts`** has grown slightly since the
-  original 30-symbol list (now ~32, with `CEG` and `MP` added by the
-  user for testing) but is still a small hand-picked list, not the full
-  S&P 500/Russell 1000. The FMP swap (above) doesn't require expanding
-  this, but removes the main blocker (Yahoo's unofficial/rate-limited
-  endpoint) to eventually doing so.
+- **`SAMPLE_UNIVERSE` in `universe.ts`** is a small hand-picked list
+  (~32 symbols, including `CEG` and `MP`), not the full S&P 500/Russell
+  1000. The FMP swap doesn't require expanding this, but removes the main
+  blocker (Yahoo's unofficial/rate-limited endpoint) to eventually doing
+  so.
 - **No backtesting harness exists yet.** Nothing replays the screen
   bar-by-bar over history to measure hit rate / false-positive rate.
   Still the most important step before trusting live output for real
@@ -191,10 +151,11 @@ None of this needs re-litigating; it's settled and gone.
 - **No persistence.** Every page load is a stateless fresh scan —
   nothing is stored, so there's no way yet to track how a flagged setup
   performed after the signal fired.
-- **`yahoo-finance2` is still the active provider as of this handoff**
-  (an unofficial/reverse-engineered API, prone to occasional rate
-  limiting — observed directly this session, HTTP 429 from
-  `query2.finance.yahoo.com`) — the FMP swap above is the fix for this.
+- **`yahoo-finance2` is still the only *implemented* provider as of this
+  handoff** (an unofficial/reverse-engineered API, prone to occasional
+  rate limiting — observed directly in an earlier session, HTTP 429 from
+  `query2.finance.yahoo.com`). `FmpMarketDataProvider` is designed and
+  planned but not yet implemented — see "Immediate next step" above.
 
 ## Data provider decision (updated context)
 
@@ -203,16 +164,17 @@ Originally decided against building on FMP immediately because the
 on FMP's Ultimate tier ($149/mo); Starter ($22/mo) gets real-time + 5yr
 history but still requires per-symbol calls; the free tier is 250
 calls/day with per-symbol calls only. That calculus hasn't changed — the
-free tier is still per-symbol-call-only — but the user now has a free-tier
-key and wants it plugged in regardless, presumably to get off Yahoo's
-rate-limited unofficial endpoint even without the bulk-scan upgrade.
-Revisit FMP Starter/Ultimate once usage patterns under the free tier are
-understood.
+free tier is still per-symbol-call-only, confirmed again via the live
+research call described above. The user has a free-tier key and it's
+already in `.env`; the plan keeps `YahooMarketDataProvider` around as a
+selectable fallback rather than assuming FMP's free tier is sufficient
+for every situation. Revisit FMP Starter/Ultimate once usage patterns
+under the free tier are understood.
 
 ## Suggested next steps, roughly in order
 
-1. **Plug in FMP** (see "Immediate next step" above) — the explicit ask
-   for the next session.
+1. **Implement the FMP provider** (see "Immediate next step" above) —
+   spec and plan are both written; this session should execute the plan.
 2. Build a backtest harness: replay the screen day-by-day over 1-2 years
    of history for the sample universe, log every trigger, and check
    forward returns (e.g. 5/10/20 days later) to see if the signal has
@@ -226,27 +188,14 @@ understood.
 5. Add persistence (SQLite is enough) so scan results and their forward
    performance can be tracked over time.
 
-## Loose ends from this session (not yet resolved, low priority)
-
-- `src/universe.ts` has an **uncommitted local edit** (adding `CEG` and
-  `MP` to `SAMPLE_UNIVERSE`) sitting in the working tree as of this
-  handoff — the user added `MP` to investigate the breakout-screen gap
-  described above. Not committed because it wasn't clear whether it
-  should be treated as permanent universe expansion or a one-off test
-  edit — ask before committing or discarding it.
-- `.vscode/launch.json` (an F5 launch config running `pnpm run dev`) is
-  also **untracked** — created during this session, never committed;
-  same story, ask the user or just commit it, low stakes either way.
-- Both of the above are harmless to leave as-is; flagging so a fresh
-  session doesn't mistake them for accidental/unexplained changes.
-
 ## File map
 
 ```
 src/
   types.ts                        MarketDataProvider interface, shared result/API-response types
   data/
-    yahooProvider.ts               Only file that knows about Yahoo specifically (to be joined/replaced by fmpProvider.ts)
+    yahooProvider.ts               Only implemented provider so far
+    fmpProvider.ts                 NOT YET CREATED — see docs/superpowers/plans/2026-08-23-fmp-provider-implementation.md
   indicators/
     movingAverage.ts               SMA, highest/lowest high
     volatility.ts                  Range contraction ("heartbeat"), volume ratio
@@ -254,7 +203,7 @@ src/
   screens/
     breakoutScreen.ts              150-day SMA cross + heartbeat consolidation + volume trigger
     sectorRotationScreen.ts        Ranks 11 SPDR sector ETFs by RS + money flow
-  universe.ts                      Sample ticker list (see "Loose ends" — has an uncommitted edit)
+  universe.ts                      Sample ticker list
   server.ts                        Express API entry point: GET /api/breakout, GET /api/sector-rotation
 client/
   index.html                       Loads Google Fonts (Instrument Sans, JetBrains Mono)
@@ -272,6 +221,14 @@ client/
       PriceChart.vue                lightweight-charts candlesticks + volume histogram + SMA150 line
       WarningsBanner.vue           Dismissible per-symbol-fetch-failure banner
 docs/superpowers/
-  specs/2026-08-23-web-frontend-design.md   The design spec this whole rewrite implemented
-  plans/2026-08-23-web-frontend-implementation.md   The 9-task implementation plan (all done)
+  specs/2026-08-23-web-frontend-design.md          The web frontend rewrite design spec
+  specs/2026-08-23-fmp-provider-design.md          The FMP provider design spec (this handoff's topic)
+  plans/2026-08-23-web-frontend-implementation.md  Web frontend's implementation plan (done)
+  plans/2026-08-23-fmp-provider-implementation.md  FMP provider's implementation plan (not yet executed)
 ```
+
+## .env
+
+Not committed (gitignored). Contains `FMP_API_KEY`, already populated.
+Optionally also `DATA_PROVIDER` (`fmp` or `yahoo`) once Task 3 of the
+implementation plan adds that selector — unset defaults to `fmp`.
