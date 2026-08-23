@@ -6,8 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "dev:server": "tsx watch src/server.ts",
+    "start": "node --env-file=.env dist/server.js",
+    "dev:server": "tsx watch --env-file=.env src/server.ts",
     "dev:client": "pnpm --dir client dev",
     "dev": "concurrently -n api,web -c blue,green \"pnpm run dev:server\" \"pnpm run dev:client\""
   },
