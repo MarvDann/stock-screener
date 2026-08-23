@@ -29,6 +29,16 @@ export interface MarketDataProvider {
    * over-fetch slightly to guarantee enough trading days for a 200-day SMA.
    */
   getDailyHistory(symbol: string, lookbackDays: number): Promise<SymbolHistory>;
+
+  /**
+   * Fetch several symbols with basic concurrency control.
+   */
+  getManyDailyHistories(
+    symbols: string[],
+    lookbackDays: number,
+    batchSize?: number,
+    delayMs?: number
+  ): Promise<SymbolHistory[]>;
 }
 
 /**

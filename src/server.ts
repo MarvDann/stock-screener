@@ -1,5 +1,6 @@
 import express from "express";
 import { YahooMarketDataProvider } from "./data/yahooProvider";
+import { FmpMarketDataProvider } from "./data/fmpProvider";
 import { scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { SAMPLE_UNIVERSE, BENCHMARK_SYMBOL } from "./universe";
@@ -8,6 +9,7 @@ import {
   BreakoutScanResponse,
   BreakoutScreenResult,
   Candidate,
+  MarketDataProvider,
   SectorRotationScanResponse,
   SymbolHistory,
 } from "./types";
@@ -17,7 +19,9 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const LOOKBACK_CALENDAR_DAYS = 400; // covers 200+ trading days with margin for weekends/holidays
 const CHART_BARS = 120;
 
-const provider = new YahooMarketDataProvider();
+const DATA_PROVIDER = process.env.DATA_PROVIDER ?? "fmp";
+const provider: MarketDataProvider =
+  DATA_PROVIDER === "yahoo" ? new YahooMarketDataProvider() : new FmpMarketDataProvider();
 
 function buildSma150Series(bars: SymbolHistory["bars"]): number[] {
   const visibleBars = bars.slice(-CHART_BARS);
