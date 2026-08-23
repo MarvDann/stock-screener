@@ -8,6 +8,10 @@ const container = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
 let candleSeries: ISeriesApi<"Candlestick"> | null = null;
 let smaSeries: ISeriesApi<"Line"> | null = null;
+let volumeSeries: ISeriesApi<"Histogram"> | null = null;
+
+const UP_COLOR = "#16a34a";
+const DOWN_COLOR = "#dc2626";
 
 function render() {
   if (!container.value) return;
@@ -18,7 +22,7 @@ function render() {
 
   chart = createChart(container.value, {
     width: container.value.clientWidth,
-    height: 160,
+    height: 200,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
       textColor: "#64748b",
@@ -32,11 +36,11 @@ function render() {
   });
 
   candleSeries = chart.addCandlestickSeries({
-    upColor: "#16a34a",
-    downColor: "#dc2626",
+    upColor: UP_COLOR,
+    downColor: DOWN_COLOR,
     borderVisible: false,
-    wickUpColor: "#16a34a",
-    wickDownColor: "#dc2626",
+    wickUpColor: UP_COLOR,
+    wickDownColor: DOWN_COLOR,
     priceLineVisible: false,
   });
   candleSeries.setData(
@@ -46,6 +50,25 @@ function render() {
       high: b.high,
       low: b.low,
       close: b.close,
+    }))
+  );
+  candleSeries.priceScale().applyOptions({
+    scaleMargins: { top: 0.05, bottom: 0.3 },
+  });
+
+  volumeSeries = chart.addHistogramSeries({
+    priceFormat: { type: "volume" },
+    priceScaleId: "volume",
+    priceLineVisible: false,
+  });
+  volumeSeries.priceScale().applyOptions({
+    scaleMargins: { top: 0.75, bottom: 0 },
+  });
+  volumeSeries.setData(
+    props.bars.map((b) => ({
+      time: b.date.slice(0, 10),
+      value: b.volume,
+      color: b.close >= b.open ? UP_COLOR : DOWN_COLOR,
     }))
   );
 
@@ -73,6 +96,6 @@ watch(() => props.bars, render);
 <style scoped>
 .chart {
   width: 100%;
-  height: 160px;
+  height: 200px;
 }
 </style>
