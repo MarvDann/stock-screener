@@ -20,6 +20,10 @@ async function load() {
   }
 }
 
+function rsClass(value: number): string {
+  return value >= 0 ? "pos" : "neg";
+}
+
 onMounted(load);
 </script>
 
@@ -56,9 +60,9 @@ onMounted(load);
           <tr v-for="r in data.results" :key="r.sectorSymbol">
             <td>{{ r.rank }}</td>
             <td>{{ r.sectorSymbol }} — {{ r.sectorName }}</td>
-            <td :class="r.relativeStrength1m >= 0 ? 'pos' : 'neg'">{{ r.relativeStrength1m.toFixed(2) }}%</td>
-            <td :class="r.relativeStrength3m >= 0 ? 'pos' : 'neg'">{{ r.relativeStrength3m.toFixed(2) }}%</td>
-            <td :class="r.relativeStrength6m >= 0 ? 'pos' : 'neg'">{{ r.relativeStrength6m.toFixed(2) }}%</td>
+            <td :class="rsClass(r.relativeStrength1m)">{{ r.relativeStrength1m.toFixed(2) }}%</td>
+            <td :class="rsClass(r.relativeStrength3m)">{{ r.relativeStrength3m.toFixed(2) }}%</td>
+            <td :class="rsClass(r.relativeStrength6m)">{{ r.relativeStrength6m.toFixed(2) }}%</td>
             <td class="flow" :class="r.moneyFlowTrend">{{ r.moneyFlowTrend }}</td>
           </tr>
         </tbody>
