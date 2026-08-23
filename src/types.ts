@@ -52,6 +52,7 @@ export interface BreakoutScreenResult {
 /** A breakout screen result plus enough recent bars to chart it client-side. */
 export interface Candidate extends BreakoutScreenResult {
   bars: DailyBar[];
+  sma150Series: number[];
 }
 
 export interface BreakoutScanResponse {

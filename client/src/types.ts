@@ -19,6 +19,7 @@ export interface BreakoutCandidate {
     daysSinceCross: number | null;
   };
   bars: DailyBar[];
+  sma150Series: number[];
 }
 
 export interface BreakoutResponse {

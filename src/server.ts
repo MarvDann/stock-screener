@@ -3,6 +3,7 @@ import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { SAMPLE_UNIVERSE, BENCHMARK_SYMBOL } from "./universe";
+import { sma } from "./indicators/movingAverage";
 import {
   BreakoutScanResponse,
   BreakoutScreenResult,
@@ -18,8 +19,18 @@ const CHART_BARS = 120;
 
 const provider = new YahooMarketDataProvider();
 
+function buildSma150Series(bars: SymbolHistory["bars"]): number[] {
+  const visibleBars = bars.slice(-CHART_BARS);
+  const startIndex = bars.length - visibleBars.length;
+  return visibleBars.map((_, i) => sma(bars, 150, startIndex + i));
+}
+
 function toCandidate(result: BreakoutScreenResult, history: SymbolHistory): Candidate {
-  return { ...result, bars: history.bars.slice(-CHART_BARS) };
+  return {
+    ...result,
+    bars: history.bars.slice(-CHART_BARS),
+    sma150Series: buildSma150Series(history.bars),
+  };
 }
 
 app.get("/api/breakout", async (_req, res) => {

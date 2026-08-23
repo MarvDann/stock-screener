@@ -20,7 +20,7 @@ function summary(c: BreakoutCandidate): string {
       <h3>{{ props.candidate.symbol }}</h3>
       <span class="close">{{ props.candidate.details.close.toFixed(2) }}</span>
     </div>
-    <PriceChart :bars="props.candidate.bars" :sma150="props.candidate.details.sma150" />
+    <PriceChart :bars="props.candidate.bars" :sma150-series="props.candidate.sma150Series" />
     <p class="summary">{{ summary(props.candidate) }}</p>
   </div>
 </template>

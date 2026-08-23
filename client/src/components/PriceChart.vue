@@ -3,10 +3,11 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ColorType, LineStyle, createChart, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
 
-const props = defineProps<{ bars: DailyBar[]; sma150: number }>();
+const props = defineProps<{ bars: DailyBar[]; sma150Series: number[] }>();
 const container = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
-let series: ISeriesApi<"Line"> | null = null;
+let closeSeries: ISeriesApi<"Line"> | null = null;
+let smaSeries: ISeriesApi<"Line"> | null = null;
 
 function render() {
   if (!container.value) return;
@@ -30,19 +31,14 @@ function render() {
     handleScale: false,
   });
 
-  series = chart.addLineSeries({ color: "#2563eb", lineWidth: 2 });
-  series.setData(props.bars.map((b) => ({ time: b.date.slice(0, 10), value: b.close })));
+  closeSeries = chart.addLineSeries({ color: "#2563eb", lineWidth: 2 });
+  closeSeries.setData(props.bars.map((b) => ({ time: b.date.slice(0, 10), value: b.close })));
 
-  if (!Number.isNaN(props.sma150)) {
-    series.createPriceLine({
-      price: props.sma150,
-      color: "#9333ea",
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      title: "150 SMA",
-      axisLabelVisible: true,
-    });
-  }
+  smaSeries = chart.addLineSeries({ color: "#9333ea", lineWidth: 1, lineStyle: LineStyle.Dashed });
+  const smaPoints = props.bars
+    .map((b, i) => ({ time: b.date.slice(0, 10), value: props.sma150Series[i] }))
+    .filter((p) => !Number.isNaN(p.value));
+  smaSeries.setData(smaPoints);
 }
 
 onMounted(render);
