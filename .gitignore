@@ -2,4 +2,7 @@ node_modules/
 dist/
 client/node_modules/
 client/dist/
+client/vite.config.js
+client/vite.config.d.ts
+*.tsbuildinfo
 .DS_Store
