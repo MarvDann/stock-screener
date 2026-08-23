@@ -6,7 +6,7 @@ import type { DailyBar } from "../types";
 const props = defineProps<{ bars: DailyBar[]; sma150Series: number[] }>();
 const container = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
-let closeSeries: ISeriesApi<"Line"> | null = null;
+let candleSeries: ISeriesApi<"Candlestick"> | null = null;
 let smaSeries: ISeriesApi<"Line"> | null = null;
 
 function render() {
@@ -31,10 +31,30 @@ function render() {
     handleScale: false,
   });
 
-  closeSeries = chart.addLineSeries({ color: "#2563eb", lineWidth: 2 });
-  closeSeries.setData(props.bars.map((b) => ({ time: b.date.slice(0, 10), value: b.close })));
+  candleSeries = chart.addCandlestickSeries({
+    upColor: "#16a34a",
+    downColor: "#dc2626",
+    borderVisible: false,
+    wickUpColor: "#16a34a",
+    wickDownColor: "#dc2626",
+    priceLineVisible: false,
+  });
+  candleSeries.setData(
+    props.bars.map((b) => ({
+      time: b.date.slice(0, 10),
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+    }))
+  );
 
-  smaSeries = chart.addLineSeries({ color: "#9333ea", lineWidth: 1, lineStyle: LineStyle.Dashed });
+  smaSeries = chart.addLineSeries({
+    color: "#9333ea",
+    lineWidth: 1,
+    lineStyle: LineStyle.Dashed,
+    priceLineVisible: false,
+  });
   const smaPoints = props.bars
     .map((b, i) => ({ time: b.date.slice(0, 10), value: props.sma150Series[i] }))
     .filter((p) => !Number.isNaN(p.value));
