@@ -10,8 +10,11 @@ let candleSeries: ISeriesApi<"Candlestick"> | null = null;
 let smaSeries: ISeriesApi<"Line"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 
-const UP_COLOR = "#16a34a";
-const DOWN_COLOR = "#dc2626";
+// Keep these in sync with the --positive/--negative tokens in style.css.
+const UP_COLOR = "#17c964";
+const DOWN_COLOR = "#f5384e";
+const VOLUME_UP_COLOR = "rgba(23, 201, 100, 0.5)";
+const VOLUME_DOWN_COLOR = "rgba(245, 56, 78, 0.5)";
 
 function render() {
   if (!container.value) return;
@@ -25,7 +28,7 @@ function render() {
     height: 200,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
-      textColor: "#64748b",
+      textColor: "#8b8fa3",
       fontSize: 10,
     },
     grid: { vertLines: { visible: false }, horzLines: { visible: false } },
@@ -68,12 +71,12 @@ function render() {
     props.bars.map((b) => ({
       time: b.date.slice(0, 10),
       value: b.volume,
-      color: b.close >= b.open ? UP_COLOR : DOWN_COLOR,
+      color: b.close >= b.open ? VOLUME_UP_COLOR : VOLUME_DOWN_COLOR,
     }))
   );
 
   smaSeries = chart.addLineSeries({
-    color: "#9333ea",
+    color: "#a78bfa",
     lineWidth: 1,
     lineStyle: LineStyle.Dashed,
     priceLineVisible: false,

@@ -78,14 +78,22 @@ onMounted(load);
   align-items: center;
   margin-bottom: 16px;
 }
+h2 {
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
 .refresh {
-  background: #2563eb;
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 6px;
   padding: 6px 14px;
   font-size: 13px;
   cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.refresh:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 .refresh:disabled {
   opacity: 0.6;
@@ -94,55 +102,62 @@ onMounted(load);
 .ranking {
   width: 100%;
   border-collapse: collapse;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
   font-size: 13px;
 }
 .ranking th,
 .ranking td {
-  padding: 8px 12px;
+  padding: 10px 12px;
   text-align: left;
+  color: var(--text-primary);
 }
 .ranking thead {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
   font-size: 11px;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .ranking tbody tr:not(:last-child) td {
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border-subtle);
 }
-.pos {
-  color: #16a34a;
+.ranking tbody tr:hover td {
+  background: var(--surface-hover);
 }
-.neg {
-  color: #dc2626;
+.ranking td.pos {
+  color: var(--positive);
+  font-family: var(--font-mono);
+}
+.ranking td.neg {
+  color: var(--negative);
+  font-family: var(--font-mono);
 }
 .flow.accumulation {
-  color: #16a34a;
+  color: var(--positive);
 }
 .flow.distribution {
-  color: #dc2626;
+  color: var(--negative);
 }
 .flow.neutral {
-  color: #64748b;
+  color: var(--text-secondary);
 }
 .error-state {
-  background: white;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  border: 1px solid var(--negative);
   border-radius: 10px;
   padding: 20px;
-  color: #991b1b;
+  color: var(--text-primary);
 }
 .error-state .detail {
   font-size: 12px;
-  color: #b91c1c;
+  color: var(--text-secondary);
   margin: 6px 0 12px;
 }
 .error-state button {
-  background: #dc2626;
+  background: var(--negative);
   color: white;
   border: none;
   border-radius: 6px;

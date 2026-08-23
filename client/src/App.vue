@@ -21,8 +21,9 @@
 .sidebar {
   width: 200px;
   flex-shrink: 0;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
@@ -32,25 +33,27 @@
   font-size: 15px;
   font-weight: 600;
   margin: 0 0 16px;
-  color: #f8fafc;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 .nav-link {
-  color: #cbd5e1;
+  color: var(--text-secondary);
   text-decoration: none;
   padding: 8px 10px;
   border-radius: 6px;
   font-size: 14px;
 }
 .nav-link:hover {
-  background: #1e293b;
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 .nav-link.router-link-active {
-  background: #2563eb;
-  color: white;
+  background: var(--accent);
+  color: #ffffff;
 }
 .content {
   flex: 1;
   padding: 32px;
-  background: #f8fafc;
+  background: var(--bg);
 }
 </style>

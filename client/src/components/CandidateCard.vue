@@ -27,10 +27,14 @@ function summary(c: BreakoutCandidate): string {
 
 <style scoped>
 .card {
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
+  transition: border-color 0.15s ease;
+}
+.card:hover {
+  border-color: var(--border-subtle);
 }
 .card-header {
   display: flex;
@@ -41,15 +45,18 @@ function summary(c: BreakoutCandidate): string {
 .card-header h3 {
   margin: 0;
   font-size: 15px;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 .close {
   font-variant-numeric: tabular-nums;
-  color: #64748b;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 .summary {
   margin: 8px 0 0;
   font-size: 12px;
-  color: #475569;
+  color: var(--text-secondary);
 }
 </style>

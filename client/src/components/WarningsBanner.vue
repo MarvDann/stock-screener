@@ -28,9 +28,9 @@ watch(
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-  color: #92400e;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-text);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
@@ -39,7 +39,7 @@ watch(
 .dismiss {
   background: none;
   border: none;
-  color: #92400e;
+  color: var(--warning-text);
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;

@@ -68,14 +68,26 @@ onMounted(load);
   align-items: center;
   margin-bottom: 16px;
 }
+h2 {
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+h3 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
 .refresh {
-  background: #2563eb;
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 6px;
   padding: 6px 14px;
   font-size: 13px;
   cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.refresh:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 .refresh:disabled {
   opacity: 0.6;
@@ -88,23 +100,23 @@ onMounted(load);
   margin-bottom: 28px;
 }
 .empty {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 .error-state {
-  background: white;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  border: 1px solid var(--negative);
   border-radius: 10px;
   padding: 20px;
-  color: #991b1b;
+  color: var(--text-primary);
 }
 .error-state .detail {
   font-size: 12px;
-  color: #b91c1c;
+  color: var(--text-secondary);
   margin: 6px 0 12px;
 }
 .error-state button {
-  background: #dc2626;
+  background: var(--negative);
   color: white;
   border: none;
   border-radius: 6px;
