@@ -3,7 +3,13 @@ import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { SAMPLE_UNIVERSE, BENCHMARK_SYMBOL } from "./universe";
-import { BreakoutScreenResult, Candidate, SymbolHistory } from "./types";
+import {
+  BreakoutScanResponse,
+  BreakoutScreenResult,
+  Candidate,
+  SectorRotationScanResponse,
+  SymbolHistory,
+} from "./types";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
@@ -27,11 +33,12 @@ app.get("/api/breakout", async (_req, res) => {
 
     const { triggered, approaching } = scanBreakoutScreen(validHistories, DEFAULT_BREAKOUT_CONFIG);
 
-    res.json({
+    const response: BreakoutScanResponse = {
       triggered: triggered.map((r) => toCandidate(r, historiesBySymbol.get(r.symbol)!)),
       approaching: approaching.map((r) => toCandidate(r, historiesBySymbol.get(r.symbol)!)),
       warnings,
-    });
+    };
+    res.json(response);
   } catch (err) {
     console.error("Breakout scan failed:", err);
     res.status(502).json({ error: "Breakout scan failed", message: (err as Error).message });
@@ -60,7 +67,8 @@ app.get("/api/sector-rotation", async (_req, res) => {
     const validHistories = sectorHistories.filter((h) => h.bars.length > 0);
 
     const results = runSectorRotationScreen(validHistories, benchmarkHistory);
-    res.json({ results, warnings });
+    const response: SectorRotationScanResponse = { results, warnings };
+    res.json(response);
   } catch (err) {
     console.error("Sector rotation scan failed:", err);
     res.status(502).json({ error: "Sector rotation scan failed", message: (err as Error).message });
