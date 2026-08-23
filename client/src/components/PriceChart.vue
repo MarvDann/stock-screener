@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ColorType, LineStyle, createChart, type IChartApi, type ISeriesApi } from "lightweight-charts";
+import { ColorType, createChart, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
 
 const props = defineProps<{ bars: DailyBar[]; sma150Series: number[] }>();
@@ -78,7 +78,6 @@ function render() {
   smaSeries = chart.addLineSeries({
     color: "#a78bfa",
     lineWidth: 1,
-    lineStyle: LineStyle.Dashed,
     priceLineVisible: false,
   });
   const smaPoints = props.bars
