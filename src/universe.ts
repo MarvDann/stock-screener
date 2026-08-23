@@ -7,7 +7,7 @@ export const SAMPLE_UNIVERSE: string[] = [
   "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AVGO",
   "JPM", "V", "MA", "UNH", "HD", "COST", "PG", "XOM", "CVX",
   "LLY", "ABBV", "MRK", "PEP", "KO", "WMT", "DIS", "CRM", "ADBE",
-  "AMD", "NFLX", "INTC", "QCOM",
+  "AMD", "NFLX", "INTC", "QCOM", "CEG", "MP"
 ];
 
 export const BENCHMARK_SYMBOL = "SPY";
