@@ -6,3 +6,4 @@ client/vite.config.js
 client/vite.config.d.ts
 *.tsbuildinfo
 .DS_Store
+.env
