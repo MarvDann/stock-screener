@@ -25,53 +25,75 @@ server and the Vite dev server together, and the app is used by opening
 a browser to `http://localhost:5173`. See `README.md` for day-to-day
 usage.
 
-## Immediate next step: implement the FMP data provider
+## FMP data provider — done
 
-**This is what the next session should do.** The design and implementation
-plan for this are both already written and committed — this session's job
-is to execute the plan, not to re-derive it:
+The FMP provider plan (`docs/superpowers/plans/2026-08-23-fmp-provider-implementation.md`,
+5 tasks) is fully implemented, type-checked, and each task passed
+spec-compliance + code-quality review. Summary of what's actually in place:
 
-- **Spec:** `docs/superpowers/specs/2026-08-23-fmp-provider-design.md`
-- **Plan:** `docs/superpowers/plans/2026-08-23-fmp-provider-implementation.md`
-  (5 tasks, fully detailed with exact code/commands — use
-  `superpowers:subagent-driven-development` or `superpowers:executing-plans`
-  to run it)
+- **`FmpMarketDataProvider` (`src/data/fmpProvider.ts`) is implemented and
+  is the default provider.** It uses FMP's **`stable`** API
+  (`historical-price-eod/full`), not the legacy `v3` endpoint originally
+  described in earlier versions of this file — the response is a flat,
+  newest-first JSON array, reversed before mapping to `DailyBar[]` (every
+  indicator assumes oldest-first). See
+  `docs/superpowers/specs/2026-08-23-fmp-provider-design.md` for the full
+  endpoint details and rationale. It also filters malformed bars and
+  handles non-JSON error response bodies safely (added during code review
+  of Task 2 — the first review round flagged both gaps, both are now fixed
+  and approved).
+- **`YahooMarketDataProvider` was kept**, not deleted, as an explicit
+  fallback: `src/server.ts` selects the provider via
+  `DATA_PROVIDER` (`fmp` or `yahoo`, default `fmp`).
+- **`.env` (gitignored) holds `FMP_API_KEY`**; `package.json`'s `start`
+  and `dev:server` scripts load it via `--env-file=.env`.
+- **Small necessary addition beyond the plan's stated file list:**
+  `MarketDataProvider` in `src/types.ts` was missing `getManyDailyHistories`
+  from its interface (it only declared `getDailyHistory`) — a pre-existing
+  gap, exposed when Task 3 added an explicit `provider: MarketDataProvider`
+  type annotation in `server.ts`. Confirmed necessary (not scope creep) by
+  temporarily reverting it and checking `tsc --noEmit` fails without it.
 
-Nothing has been implemented yet — `src/data/` still only has
-`yahooProvider.ts`. What's already done, so the new session doesn't repeat
-it:
+### Live verification — confirmed where data was available, but incomplete
 
-- **The API was researched live.** `HANDOFF.md` previously pointed at FMP's
-  legacy `v3` endpoint. That's wrong / stale — a live test call against the
-  user's actual free-tier key (during the design session) confirmed FMP's
-  current API is a separate `stable` namespace:
-  `GET https://financialmodelingprep.com/stable/historical-price-eod/full?symbol={symbol}&from={YYYY-MM-DD}&to={YYYY-MM-DD}&apikey={key}`,
-  returning a **flat JSON array**, **newest-first** (not nested under
-  `historical` like the legacy shape). See the spec doc for the full
-  confirmed response example and field list. The plan's Task 2 already
-  contains the correct, tested-against-the-shape implementation.
-- **`.env` already exists** at the project root, is already gitignored, and
-  already has `FMP_API_KEY` populated (the user added it directly — no
-  session has read or displayed the key value, by design). Nothing more
-  needed here except the `--env-file=.env` wiring in `package.json`
-  (plan Task 1).
-- **Budget spent so far:** 1 of FMP's 250 daily requests, from the live
-  research call above. Plan Task 2's smoke test spends 1 more; Task 4's
-  end-to-end check spends ~44 more (one full scan). Budget-conscious, not
-  exhausted — but don't loop test runs carelessly.
-- **Open decision from the original handoff was resolved:** keep
-  `YahooMarketDataProvider` as an explicit, env-selectable fallback
-  (`DATA_PROVIDER=yahoo`, default `fmp`) rather than deleting it — this was
-  an explicit user choice made during design, already reflected in the plan.
+The manual end-to-end check (Task 4) ran into FMP's free-tier daily quota
+(250 requests/day) already being exhausted partway through — evidence
+points to an earlier session today having already run this same plan
+(leftover subagent state matching this plan's task names, timestamped
+hours earlier) and burning most/all of the day's quota itself. What was
+and wasn't confirmed:
+
+- **`/api/breakout` against FMP returned real, populated data** before the
+  quota ran out — e.g. COST correctly flagged "Approaching" (close 947.74,
+  sma150 980.05, ~3.30% below), matching an already-validated case from an
+  earlier design session.
+- **A direct FMP-vs-Yahoo comparison for COST** (the one symbol both
+  providers had FMP data for before quota ran out) matched almost exactly
+  (close 947.74 vs 947.74, sma150 980.0498 vs 980.0498, pctBelowSma150
+  3.2967% vs 3.2967%) — strong confirmation the reversal/field-mapping
+  logic is correct.
+- **`/api/sector-rotation` has NOT been confirmed working end-to-end
+  against real FMP data.** All 11 sector ETFs + benchmark hit HTTP 402
+  ("Payment Required") once quota ran out during this run. The code path
+  is identical to breakout's (same provider, same per-symbol fetch), so
+  there's no reason to suspect a defect, but it's unverified live — a
+  genuine gap, not just caution. **Follow-up: re-run `/api/sector-rotation`
+  against FMP once the daily quota resets, ideally as the first FMP call of
+  a fresh day** so it isn't itself at risk of hitting the wall.
+- **Error handling was validated for real by the quota exhaustion itself:**
+  `FmpMarketDataProvider.getManyDailyHistories`'s per-symbol try/catch
+  correctly caught every 402, logged it, and returned an empty-bars result
+  for that symbol rather than crashing the request — both endpoints still
+  returned `200` with populated `warnings` arrays instead of erroring out.
+- **The `DATA_PROVIDER=yahoo` fallback was verified working for both
+  endpoints** (no FMP quota needed) — full populated data both times.
 
 ### Verification approach
 
 Same as the rest of this project: no automated test framework (deliberate
-choice) — `tsc --noEmit` for type-checking, plus the plan's Task 4 manual
-end-to-end check (`/api/breakout` and `/api/sector-rotation` against real
-FMP data, spot-compared against the Yahoo provider for a couple of
-symbols). Full detail is in the plan doc — follow it as written rather than
-re-deriving verification steps.
+choice) — `tsc --noEmit` for type-checking, plus manual end-to-end checks
+of `/api/breakout` and `/api/sector-rotation` against real data. See above
+for what's been confirmed and what's still outstanding.
 
 ## Why things are built the way they are
 
@@ -151,11 +173,17 @@ None of this needs re-litigating; it's settled and gone.
 - **No persistence.** Every page load is a stateless fresh scan —
   nothing is stored, so there's no way yet to track how a flagged setup
   performed after the signal fired.
-- **`yahoo-finance2` is still the only *implemented* provider as of this
-  handoff** (an unofficial/reverse-engineered API, prone to occasional
-  rate limiting — observed directly in an earlier session, HTTP 429 from
-  `query2.finance.yahoo.com`). `FmpMarketDataProvider` is designed and
-  planned but not yet implemented — see "Immediate next step" above.
+- **`/api/sector-rotation` against live FMP data is unverified** (as
+  opposed to just untrusted) — see "Live verification" above. Re-run it
+  once the FMP daily quota resets to close this gap.
+- **FMP's free tier is a hard 250-requests/day wall, shared across
+  whatever runs against the same key that day** — a full sector-rotation
+  scan plus a breakout scan can burn most or all of it, and there's no
+  cross-session tracking of how much has been used. `yahoo-finance2`
+  remains available as a fallback (`DATA_PROVIDER=yahoo`) precisely for
+  this case — it's unofficial/reverse-engineered and prone to occasional
+  rate limiting of its own (HTTP 429 from `query2.finance.yahoo.com`,
+  observed directly in an earlier session), but has no daily quota.
 
 ## Data provider decision (updated context)
 
@@ -163,18 +191,23 @@ Originally decided against building on FMP immediately because the
 **bulk EOD endpoint** needed to scan a broad universe efficiently is only
 on FMP's Ultimate tier ($149/mo); Starter ($22/mo) gets real-time + 5yr
 history but still requires per-symbol calls; the free tier is 250
-calls/day with per-symbol calls only. That calculus hasn't changed — the
-free tier is still per-symbol-call-only, confirmed again via the live
-research call described above. The user has a free-tier key and it's
-already in `.env`; the plan keeps `YahooMarketDataProvider` around as a
-selectable fallback rather than assuming FMP's free tier is sufficient
-for every situation. Revisit FMP Starter/Ultimate once usage patterns
-under the free tier are understood.
+calls/day with per-symbol calls only. That calculus hasn't changed, and
+the free-tier quota limit is no longer theoretical: it was hit for real
+during Task 4's verification (see "Live verification" above), most likely
+by an earlier session's own testing burning most/all of the day's budget.
+`FmpMarketDataProvider` is now implemented and is the default provider;
+`YahooMarketDataProvider` stays available as a selectable fallback
+(`DATA_PROVIDER=yahoo`) for exactly this case — no daily quota, at the
+cost of being an unofficial API. Revisit FMP Starter/Ultimate once usage
+patterns under the free tier are better understood (one full breakout +
+sector-rotation scan across the sample universe can apparently consume a
+large fraction of the daily 250-call budget on its own).
 
 ## Suggested next steps, roughly in order
 
-1. **Implement the FMP provider** (see "Immediate next step" above) —
-   spec and plan are both written; this session should execute the plan.
+1. **Re-run `/api/sector-rotation` against real FMP data** once the daily
+   quota resets, to close the "Live verification" gap noted above —
+   ideally as the first FMP call of a fresh day.
 2. Build a backtest harness: replay the screen day-by-day over 1-2 years
    of history for the sample universe, log every trigger, and check
    forward returns (e.g. 5/10/20 days later) to see if the signal has
@@ -182,9 +215,10 @@ under the free tier are understood.
 3. Decide what to do about the "crossed but not volume-confirmed" gap
    noted above (add a third bucket? relax the threshold? leave it?) —
    deferred, not decided.
-4. Expand `SAMPLE_UNIVERSE` toward the full S&P 500 once FMP removes the
-   rate-limiting concern (a static list is fine to start — dynamically
-   fetching constituents is a later nicety).
+4. Expand `SAMPLE_UNIVERSE` toward the full S&P 500 — note FMP's
+   free-tier daily quota (250 calls/day, per-symbol) is now the binding
+   constraint on how far this can go without upgrading tiers or relying
+   on the Yahoo fallback.
 5. Add persistence (SQLite is enough) so scan results and their forward
    performance can be tracked over time.
 
@@ -194,8 +228,8 @@ under the free tier are understood.
 src/
   types.ts                        MarketDataProvider interface, shared result/API-response types
   data/
-    yahooProvider.ts               Only implemented provider so far
-    fmpProvider.ts                 NOT YET CREATED — see docs/superpowers/plans/2026-08-23-fmp-provider-implementation.md
+    fmpProvider.ts                 Default provider (DATA_PROVIDER=fmp)
+    yahooProvider.ts               Fallback provider (DATA_PROVIDER=yahoo)
   indicators/
     movingAverage.ts               SMA, highest/lowest high
     volatility.ts                  Range contraction ("heartbeat"), volume ratio
@@ -222,13 +256,13 @@ client/
       WarningsBanner.vue           Dismissible per-symbol-fetch-failure banner
 docs/superpowers/
   specs/2026-08-23-web-frontend-design.md          The web frontend rewrite design spec
-  specs/2026-08-23-fmp-provider-design.md          The FMP provider design spec (this handoff's topic)
+  specs/2026-08-23-fmp-provider-design.md          The FMP provider design spec
   plans/2026-08-23-web-frontend-implementation.md  Web frontend's implementation plan (done)
-  plans/2026-08-23-fmp-provider-implementation.md  FMP provider's implementation plan (not yet executed)
+  plans/2026-08-23-fmp-provider-implementation.md  FMP provider's implementation plan (done, all 5 tasks)
 ```
 
 ## .env
 
 Not committed (gitignored). Contains `FMP_API_KEY`, already populated.
-Optionally also `DATA_PROVIDER` (`fmp` or `yahoo`) once Task 3 of the
-implementation plan adds that selector — unset defaults to `fmp`.
+Optionally also `DATA_PROVIDER` (`fmp` or `yahoo`) — unset defaults to
+`fmp`.
