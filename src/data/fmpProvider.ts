@@ -66,7 +66,10 @@ export class FmpMarketDataProvider implements MarketDataProvider {
 
     const raw = (await response.json()) as FmpDailyBar[];
     const bars: DailyBar[] = raw
-      .filter((bar) => bar.open != null && bar.high != null && bar.low != null && bar.close != null)
+      .filter(
+        (bar) =>
+          bar.open != null && bar.high != null && bar.low != null && bar.close != null && bar.volume != null
+      )
       .slice()
       .reverse()
       .map((bar) => ({

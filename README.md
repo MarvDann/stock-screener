@@ -25,8 +25,11 @@ This starts the Express API server (port 3001) and the Vite dev server
 redirects to the Breakout page. Each page fetches fresh data on load; use
 the "Refresh" button on a page to re-run the scan without reloading.
 
-No API key required — the data layer uses `yahoo-finance2`, a free
-wrapper around Yahoo Finance's public chart endpoints.
+The data layer defaults to Financial Modeling Prep (FMP), so a `FMP_API_KEY`
+is required in `.env` before running — see the `.env` section in
+`HANDOFF.md` for details. To run without an FMP key instead, set
+`DATA_PROVIDER=yahoo` in `.env` to use the free `yahoo-finance2` fallback
+(no API key, but unofficial and rate-limited).
 
 ## Project structure
 
@@ -34,7 +37,8 @@ wrapper around Yahoo Finance's public chart endpoints.
 src/
   types.ts                     Shared interfaces (bars, provider, results)
   data/
-    yahooProvider.ts           Free data provider (swap for FMP/Polygon later)
+    fmpProvider.ts             Default data provider (requires FMP_API_KEY)
+    yahooProvider.ts           Free fallback provider (DATA_PROVIDER=yahoo)
   indicators/
     movingAverage.ts           SMA, slope, highest/lowest high, % off high
     volatility.ts              Range contraction ("heartbeat"), volume ratio
@@ -55,10 +59,14 @@ client/
 ## Swapping the data provider
 
 Everything downstream of `MarketDataProvider` (in `src/types.ts`) only
-depends on that interface, not on Yahoo specifically. To move to FMP or
-Polygon later, implement the same interface (`getDailyHistory`) against
-the new API and swap the import in `src/server.ts` — no changes needed to
-indicators or screens.
+depends on that interface, not on any specific API. `src/server.ts`
+selects the provider via the `DATA_PROVIDER` env var (`fmp` or `yahoo`,
+default `fmp`): `FmpMarketDataProvider` is the default and requires
+`FMP_API_KEY`; `YahooMarketDataProvider` is a free, no-key fallback
+(`DATA_PROVIDER=yahoo`) with no daily quota but unofficial/rate-limited
+behavior. To add another provider, implement the same interface
+(`getDailyHistory`) against the new API and wire it into `src/server.ts`
+— no changes needed to indicators or screens.
 
 ## Tuning the breakout screen
 
