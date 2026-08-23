@@ -1,0 +1,49 @@
+<h2>Which overall layout feels right?</h2>
+<p class="subtitle">All three screens (Breakout, Near-Breakout, Sector Rotation) need a home. Pick the navigation shape you'd want to live in day-to-day.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Tabs, single page</h3>
+      <p>One page, one "Run Scan" button up top, three tabs below it (Breakout / Near-Breakout / Sector Rotation). Fast to switch between, everything in one URL.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">stock-screener</div>
+        <div class="mockup-body">
+          <div class="mock-nav">Run Scan &nbsp;&nbsp;&nbsp; [ Breakout ] Near-Breakout  Sector Rotation</div>
+          <div class="mock-content" style="min-height:120px">results table / chart grid</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Sidebar, separate pages</h3>
+      <p>Left sidebar nav to three distinct pages/routes, each with its own URL. Feels more like a "real" multi-page app, room to grow (e.g. settings, history later).</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">stock-screener</div>
+        <div class="mockup-body" style="display:flex">
+          <div class="mock-sidebar">Breakout<br>Near-Breakout<br>Sector Rotation</div>
+          <div class="mock-content" style="min-height:120px">Run Scan button + results for selected page</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Single scrolling dashboard</h3>
+      <p>One page, one scan button, all three screens stacked as sections you scroll through. Simplest structure, no routing at all.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">stock-screener</div>
+        <div class="mockup-body">
+          <div class="mock-nav">Run Scan</div>
+          <div class="mock-content" style="min-height:60px">Breakout section</div>
+          <div class="mock-content" style="min-height:60px;margin-top:8px">Near-Breakout section</div>
+          <div class="mock-content" style="min-height:60px;margin-top:8px">Sector Rotation section</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

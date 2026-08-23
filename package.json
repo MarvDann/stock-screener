@@ -1,0 +1,20 @@
+{
+  "name": "stock-screener",
+  "version": "0.1.0",
+  "description": "Consolidation/breakout screener + sector rotation tracker",
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "yahoo-finance2": "^4.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.14.10"
+  }
+}
