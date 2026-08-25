@@ -9,6 +9,7 @@ let chart: IChartApi | null = null;
 let candleSeries: ISeriesApi<"Candlestick"> | null = null;
 let smaSeries: ISeriesApi<"Line"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 // Keep these in sync with the --positive/--negative tokens in style.css.
 const UP_COLOR = "#17c964";
@@ -84,10 +85,21 @@ function render() {
     .map((b, i) => ({ time: b.date.slice(0, 10), value: props.sma150Series[i] }))
     .filter((p) => !Number.isNaN(p.value));
   smaSeries.setData(smaPoints);
+
+  resizeObserver?.disconnect();
+  resizeObserver = new ResizeObserver((entries) => {
+    if (!chart) return;
+    const width = entries[0]?.contentRect.width;
+    if (width) chart.applyOptions({ width });
+  });
+  resizeObserver.observe(container.value);
 }
 
 onMounted(render);
-onBeforeUnmount(() => chart?.remove());
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  chart?.remove();
+});
 watch(() => props.bars, render);
 </script>
 
