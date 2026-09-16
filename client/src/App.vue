@@ -1,16 +1,33 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { useRouter, useRoute } from "vue-router";
+import { computed } from "vue";
+import { isAuthenticated, clearToken } from "./api";
+
+const router = useRouter();
+const route = useRoute();
+
+const showSidebar = computed(() => route.name !== "login");
+
+function logout() {
+  clearToken();
+  router.push("/login");
+}
+</script>
 
 <template>
-  <div class="app-shell">
+  <div v-if="showSidebar" class="app-shell">
     <nav class="sidebar">
       <h1 class="brand">Stock Screener</h1>
       <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
       <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
+      <div class="sidebar-spacer" />
+      <button class="logout-btn" @click="logout">Log out</button>
     </nav>
     <main class="content">
       <RouterView />
     </main>
   </div>
+  <RouterView v-else />
 </template>
 
 <style scoped>
@@ -55,5 +72,23 @@
   flex: 1;
   padding: 32px;
   background: var(--bg);
+}
+.sidebar-spacer {
+  flex: 1;
+}
+.logout-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.logout-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
 }
 </style>

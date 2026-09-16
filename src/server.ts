@@ -13,8 +13,14 @@ import {
   SectorRotationScanResponse,
   SymbolHistory,
 } from "./types";
+import "./db";
+import authRouter from "./auth";
+import { requireAuth } from "./middleware/requireAuth";
+import { getCached, setCache } from "./cache";
+import { STOCK_NAMES } from "./stockNames";
 
 const app = express();
+app.use(express.json());
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const LOOKBACK_CALENDAR_DAYS = 400; // covers 200+ trading days with margin for weekends/holidays
 const CHART_BARS = 120;
@@ -37,16 +43,22 @@ function toCandidate(result: BreakoutScreenResult, history: SymbolHistory): Cand
   };
 }
 
-app.get("/api/breakout", async (_req, res) => {
+app.use(authRouter);
+
+app.get("/api/breakout", requireAuth, async (_req, res) => {
   try {
-    const histories = await provider.getManyDailyHistories(SAMPLE_UNIVERSE, LOOKBACK_CALENDAR_DAYS);
+    let histories = getCached("breakout");
+    if (!histories) {
+      histories = await provider.getManyDailyHistories(SAMPLE_UNIVERSE, LOOKBACK_CALENDAR_DAYS);
+      setCache("breakout", histories);
+    }
     const warnings = histories
       .filter((h) => h.bars.length === 0)
       .map((h) => `Skipped ${h.symbol}: fetch failed`);
     const validHistories = histories.filter((h) => h.bars.length > 0);
     const historiesBySymbol = new Map(validHistories.map((h) => [h.symbol, h]));
 
-    const { triggered, approaching } = scanBreakoutScreen(validHistories, DEFAULT_BREAKOUT_CONFIG);
+    const { triggered, approaching } = scanBreakoutScreen(validHistories, DEFAULT_BREAKOUT_CONFIG, STOCK_NAMES);
 
     const response: BreakoutScanResponse = {
       triggered: triggered.map((r) => toCandidate(r, historiesBySymbol.get(r.symbol)!)),
@@ -60,13 +72,23 @@ app.get("/api/breakout", async (_req, res) => {
   }
 });
 
-app.get("/api/sector-rotation", async (_req, res) => {
+app.get("/api/sector-rotation", requireAuth, async (_req, res) => {
   try {
     const sectorSymbols = Object.keys(SECTOR_ETFS);
-    const [sectorHistories, benchmarkHistory] = await Promise.all([
-      provider.getManyDailyHistories(sectorSymbols, LOOKBACK_CALENDAR_DAYS),
-      provider.getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS),
-    ]);
+    let sectorHistories = getCached("sector-rotation");
+    let benchmarkHistory: SymbolHistory;
+    if (sectorHistories) {
+      benchmarkHistory = getCached("benchmark")?.[0] ?? await provider.getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS);
+    } else {
+      const [sectors, benchmark] = await Promise.all([
+        provider.getManyDailyHistories(sectorSymbols, LOOKBACK_CALENDAR_DAYS),
+        provider.getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS),
+      ]);
+      sectorHistories = sectors;
+      benchmarkHistory = benchmark;
+      setCache("sector-rotation", sectorHistories);
+      setCache("benchmark", [benchmarkHistory]);
+    }
 
     if (benchmarkHistory.bars.length === 0) {
       res.status(502).json({
@@ -88,6 +110,15 @@ app.get("/api/sector-rotation", async (_req, res) => {
     console.error("Sector rotation scan failed:", err);
     res.status(502).json({ error: "Sector rotation scan failed", message: (err as Error).message });
   }
+});
+
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 app.listen(PORT, () => {

@@ -17,7 +17,10 @@ function summary(c: BreakoutCandidate): string {
 <template>
   <div class="card">
     <div class="card-header">
-      <h3>{{ props.candidate.symbol }}</h3>
+      <div>
+        <h3>{{ props.candidate.name || props.candidate.symbol }}</h3>
+        <span class="ticker">{{ props.candidate.symbol }}</span>
+      </div>
       <span class="close">{{ props.candidate.details.close.toFixed(2) }}</span>
     </div>
     <PriceChart :bars="props.candidate.bars" :sma150-series="props.candidate.sma150Series" />
@@ -44,9 +47,20 @@ function summary(c: BreakoutCandidate): string {
 }
 .card-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.ticker {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
 }
 .close {
   font-variant-numeric: tabular-nums;

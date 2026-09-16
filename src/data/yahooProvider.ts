@@ -43,8 +43,8 @@ export class YahooMarketDataProvider implements MarketDataProvider {
   async getManyDailyHistories(
     symbols: string[],
     lookbackDays: number,
-    batchSize = 10,
-    delayMs = 250
+    batchSize = 25,
+    delayMs = 100
   ): Promise<SymbolHistory[]> {
     const results: SymbolHistory[] = [];
 

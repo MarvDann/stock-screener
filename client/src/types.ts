@@ -9,6 +9,7 @@ export interface DailyBar {
 
 export interface BreakoutCandidate {
   symbol: string;
+  name: string;
   state: "triggered" | "approaching";
   details: {
     close: number;

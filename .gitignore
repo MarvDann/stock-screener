@@ -7,3 +7,4 @@ client/vite.config.d.ts
 *.tsbuildinfo
 .DS_Store
 .env
+data/

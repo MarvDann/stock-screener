@@ -46,6 +46,7 @@ export interface MarketDataProvider {
  */
 export interface BreakoutScreenResult {
   symbol: string;
+  name: string;
   state: "triggered" | "approaching";
   details: {
     close: number;

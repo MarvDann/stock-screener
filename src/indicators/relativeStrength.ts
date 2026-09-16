@@ -63,7 +63,7 @@ export function moneyFlowScore(
 
 export function classifyMoneyFlow(score: number): "accumulation" | "distribution" | "neutral" {
   if (isNaN(score)) return "neutral";
-  if (score > 0.15) return "accumulation";
-  if (score < -0.15) return "distribution";
+  if (score > 0.05) return "accumulation";
+  if (score < -0.05) return "distribution";
   return "neutral";
 }

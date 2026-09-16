@@ -92,8 +92,8 @@ export class FmpMarketDataProvider implements MarketDataProvider {
   async getManyDailyHistories(
     symbols: string[],
     lookbackDays: number,
-    batchSize = 10,
-    delayMs = 300
+    batchSize = 25,
+    delayMs = 100
   ): Promise<SymbolHistory[]> {
     const results: SymbolHistory[] = [];
 

@@ -1,10 +1,45 @@
 import type { BreakoutResponse, SectorRotationResponse } from "./types";
+import router from "./router";
+
+function getToken(): string | null {
+  return localStorage.getItem("token");
+}
+
+export function clearToken(): void {
+  localStorage.removeItem("token");
+}
+
+export function isAuthenticated(): boolean {
+  return getToken() !== null;
+}
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, { headers });
+  } catch {
+    throw new Error("Network error — check your connection and try again");
+  }
+
+  if (res.status === 401) {
+    clearToken();
+    router.push("/login");
+    throw new Error("Session expired — please log in again");
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || body.error || `Request to ${url} failed with ${res.status}`);
+    const message = body.message || body.error;
+    if (res.status >= 500) {
+      throw new Error(message || "Server error — try again in a moment");
+    }
+    throw new Error(message || `Request failed (${res.status})`);
   }
   return res.json() as Promise<T>;
 }

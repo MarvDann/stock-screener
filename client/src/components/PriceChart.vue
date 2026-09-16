@@ -35,8 +35,8 @@ function render() {
     grid: { vertLines: { visible: false }, horzLines: { visible: false } },
     timeScale: { borderVisible: false },
     rightPriceScale: { borderVisible: false },
-    handleScroll: false,
-    handleScale: false,
+    handleScroll: { mouseWheel: true, pressedMouseMove: true },
+    handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
   });
 
   candleSeries = chart.addCandlestickSeries({

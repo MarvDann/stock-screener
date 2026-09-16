@@ -59,7 +59,8 @@ function findCrossDayIndex(
  */
 export function runBreakoutScreen(
   history: SymbolHistory,
-  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG
+  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG,
+  name = ""
 ): BreakoutScreenResult | null {
   const { bars, symbol } = history;
   const endIndex = bars.length - 1;
@@ -83,6 +84,7 @@ export function runBreakoutScreen(
     if (isConsolidating && volRatio >= config.minTriggerVolumeRatio) {
       return {
         symbol,
+        name,
         state: "triggered",
         details: {
           close,
@@ -104,6 +106,7 @@ export function runBreakoutScreen(
   if (isApproaching) {
     return {
       symbol,
+      name,
       state: "approaching",
       details: {
         close,
@@ -125,14 +128,23 @@ export function runBreakoutScreen(
  */
 export function scanBreakoutScreen(
   histories: SymbolHistory[],
-  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG
+  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG,
+  names: Record<string, string> = {}
 ): { triggered: BreakoutScreenResult[]; approaching: BreakoutScreenResult[] } {
   const results = histories
-    .map((h) => runBreakoutScreen(h, config))
+    .map((h) => runBreakoutScreen(h, config, names[h.symbol] ?? ""))
     .filter((r): r is BreakoutScreenResult => r !== null);
 
+  const triggered = results
+    .filter((r) => r.state === "triggered")
+    .sort((a, b) => b.details.volumeRatio - a.details.volumeRatio);
+
+  const approaching = results
+    .filter((r) => r.state === "approaching")
+    .sort((a, b) => a.details.pctBelowSma150 - b.details.pctBelowSma150);
+
   return {
-    triggered: results.filter((r) => r.state === "triggered"),
-    approaching: results.filter((r) => r.state === "approaching"),
+    triggered,
+    approaching,
   };
 }
