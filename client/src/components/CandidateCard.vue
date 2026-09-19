@@ -1,8 +1,25 @@
 <script setup lang="ts">
+import { useRouter } from "vue-router";
 import type { BreakoutCandidate } from "../types";
 import PriceChart from "./PriceChart.vue";
 
+const router = useRouter();
 const props = defineProps<{ candidate: BreakoutCandidate }>();
+
+let downX = 0;
+let downY = 0;
+
+function onPointerDown(e: PointerEvent) {
+  downX = e.clientX;
+  downY = e.clientY;
+}
+
+function openDetail(e: PointerEvent) {
+  const dx = Math.abs(e.clientX - downX);
+  const dy = Math.abs(e.clientY - downY);
+  if (dx > 4 || dy > 4) return;
+  router.push(`/stock/${props.candidate.symbol}`);
+}
 
 function summary(c: BreakoutCandidate): string {
   if (c.state === "triggered") {
@@ -15,7 +32,7 @@ function summary(c: BreakoutCandidate): string {
 </script>
 
 <template>
-  <div class="card">
+  <div class="card" @pointerdown="onPointerDown" @click="openDetail">
     <div class="card-header">
       <div>
         <h3>{{ props.candidate.name || props.candidate.symbol }}</h3>
@@ -23,7 +40,7 @@ function summary(c: BreakoutCandidate): string {
       </div>
       <span class="close">{{ props.candidate.details.close.toFixed(2) }}</span>
     </div>
-    <PriceChart :bars="props.candidate.bars" :sma150-series="props.candidate.sma150Series" />
+    <PriceChart :bars="props.candidate.bars" :sma50-series="props.candidate.sma50Series" :sma150-series="props.candidate.sma150Series" />
     <p class="summary">{{ summary(props.candidate) }}</p>
   </div>
 </template>
@@ -34,10 +51,12 @@ function summary(c: BreakoutCandidate): string {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
-  transition: border-color 0.15s ease;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .card:hover {
-  border-color: var(--border-subtle);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .card-header {
   display: flex;

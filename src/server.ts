@@ -1,7 +1,7 @@
 import express from "express";
 import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { FmpMarketDataProvider } from "./data/fmpProvider";
-import { scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
+import { runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { SAMPLE_UNIVERSE, BENCHMARK_SYMBOL } from "./universe";
 import { sma } from "./indicators/movingAverage";
@@ -11,6 +11,7 @@ import {
   Candidate,
   MarketDataProvider,
   SectorRotationScanResponse,
+  StockDetailResponse,
   SymbolHistory,
 } from "./types";
 import "./db";
@@ -24,22 +25,25 @@ app.use(express.json());
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const LOOKBACK_CALENDAR_DAYS = 400; // covers 200+ trading days with margin for weekends/holidays
 const CHART_BARS = 120;
+const DETAIL_CHART_BARS = 252;
+const DETAIL_LOOKBACK_DAYS = 550;
 
 const DATA_PROVIDER = process.env.DATA_PROVIDER ?? "fmp";
 const provider: MarketDataProvider =
   DATA_PROVIDER === "yahoo" ? new YahooMarketDataProvider() : new FmpMarketDataProvider();
 
-function buildSma150Series(bars: SymbolHistory["bars"]): number[] {
-  const visibleBars = bars.slice(-CHART_BARS);
+function buildSmaSeries(bars: SymbolHistory["bars"], period: number, visibleCount = CHART_BARS): number[] {
+  const visibleBars = bars.slice(-visibleCount);
   const startIndex = bars.length - visibleBars.length;
-  return visibleBars.map((_, i) => sma(bars, 150, startIndex + i));
+  return visibleBars.map((_, i) => sma(bars, period, startIndex + i));
 }
 
 function toCandidate(result: BreakoutScreenResult, history: SymbolHistory): Candidate {
   return {
     ...result,
     bars: history.bars.slice(-CHART_BARS),
-    sma150Series: buildSma150Series(history.bars),
+    sma50Series: buildSmaSeries(history.bars, 50),
+    sma150Series: buildSmaSeries(history.bars, 150),
   };
 }
 
@@ -109,6 +113,35 @@ app.get("/api/sector-rotation", requireAuth, async (_req, res) => {
   } catch (err) {
     console.error("Sector rotation scan failed:", err);
     res.status(502).json({ error: "Sector rotation scan failed", message: (err as Error).message });
+  }
+});
+
+app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
+  const symbol = String(req.params.symbol).toUpperCase();
+  try {
+    const cached = getCached("breakout");
+    let history = cached?.find((h) => h.symbol === symbol);
+    if (!history || history.bars.length === 0) {
+      history = await provider.getDailyHistory(symbol, DETAIL_LOOKBACK_DAYS);
+    }
+    if (history.bars.length === 0) {
+      res.status(404).json({ error: `No data for ${symbol}` });
+      return;
+    }
+    const visibleCount = Math.min(history.bars.length, DETAIL_CHART_BARS);
+    const screenResult = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, STOCK_NAMES[symbol] ?? "");
+    const response: StockDetailResponse = {
+      symbol,
+      name: STOCK_NAMES[symbol] ?? "",
+      bars: history.bars.slice(-visibleCount),
+      sma50Series: buildSmaSeries(history.bars, 50, visibleCount),
+      sma150Series: buildSmaSeries(history.bars, 150, visibleCount),
+      details: screenResult?.details ?? null,
+    };
+    res.json(response);
+  } catch (err) {
+    console.error(`Stock detail failed for ${symbol}:`, err);
+    res.status(502).json({ error: "Failed to fetch stock data", message: (err as Error).message });
   }
 });
 

@@ -31,7 +31,7 @@ onMounted(load);
   <div>
     <div class="page-header">
       <h2>Sector Rotation</h2>
-      <button class="refresh" :disabled="loading" @click="load">
+      <button class="btn-primary" :disabled="loading" @click="load">
         {{ loading ? "Refreshing…" : "Refresh" }}
       </button>
     </div>
@@ -50,20 +50,18 @@ onMounted(load);
           <tr>
             <th>#</th>
             <th>Sector</th>
-            <th>RS 1m</th>
-            <th>RS 3m</th>
-            <th>RS 6m</th>
+            <th>Mansfield RS</th>
             <th>Money flow</th>
+            <th>Capital flow</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in data.results" :key="r.sectorSymbol">
             <td>{{ r.rank }}</td>
             <td>{{ r.sectorSymbol }} — {{ r.sectorName }}</td>
-            <td :class="rsClass(r.relativeStrength1m)">{{ r.relativeStrength1m.toFixed(2) }}%</td>
-            <td :class="rsClass(r.relativeStrength3m)">{{ r.relativeStrength3m.toFixed(2) }}%</td>
-            <td :class="rsClass(r.relativeStrength6m)">{{ r.relativeStrength6m.toFixed(2) }}%</td>
+            <td :class="rsClass(r.mansfieldRs)">{{ isNaN(r.mansfieldRs) ? "—" : r.mansfieldRs.toFixed(2) }}</td>
             <td class="flow" :class="r.moneyFlowTrend">{{ r.moneyFlowTrend }}</td>
+            <td class="flow" :class="r.capitalFlow">{{ r.capitalFlow }}</td>
           </tr>
         </tbody>
       </table>
@@ -72,33 +70,6 @@ onMounted(load);
 </template>
 
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-h2 {
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-.refresh {
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.refresh:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-.refresh:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
 .ranking {
   width: 100%;
   border-collapse: collapse;
@@ -135,33 +106,15 @@ h2 {
   color: var(--negative);
   font-family: var(--font-mono);
 }
-.flow.accumulation {
+.flow.accumulation,
+.flow.accumulating {
   color: var(--positive);
 }
-.flow.distribution {
+.flow.distribution,
+.flow.distributing {
   color: var(--negative);
 }
 .flow.neutral {
   color: var(--text-secondary);
-}
-.error-state {
-  background: var(--surface);
-  border: 1px solid var(--negative);
-  border-radius: 10px;
-  padding: 20px;
-  color: var(--text-primary);
-}
-.error-state .detail {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 6px 0 12px;
-}
-.error-state button {
-  background: var(--negative);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  cursor: pointer;
 }
 </style>

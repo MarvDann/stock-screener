@@ -63,6 +63,7 @@ export interface BreakoutScreenResult {
 /** A breakout screen result plus enough recent bars to chart it client-side. */
 export interface Candidate extends BreakoutScreenResult {
   bars: DailyBar[];
+  sma50Series: number[];
   sma150Series: number[];
 }
 
@@ -70,6 +71,15 @@ export interface BreakoutScanResponse {
   triggered: Candidate[];
   approaching: Candidate[];
   warnings: string[];
+}
+
+export interface StockDetailResponse {
+  symbol: string;
+  name: string;
+  bars: DailyBar[];
+  sma50Series: number[];
+  sma150Series: number[];
+  details: BreakoutScreenResult["details"] | null;
 }
 
 export interface SectorRotationScanResponse {
@@ -83,9 +93,8 @@ export interface SectorRotationScanResponse {
 export interface SectorRotationResult {
   sectorSymbol: string;
   sectorName: string;
-  relativeStrength1m: number; // sector return - SPY return, 1 month
-  relativeStrength3m: number;
-  relativeStrength6m: number;
+  mansfieldRs: number;
   moneyFlowTrend: "accumulation" | "distribution" | "neutral";
+  capitalFlow: "accumulating" | "distributing" | "neutral";
   rank: number; // 1 = strongest rotation-in
 }

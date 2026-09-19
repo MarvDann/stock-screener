@@ -1,35 +1,31 @@
 import { DailyBar } from "../types";
 
-/**
- * Simple % return over the last `tradingDays` bars.
- */
-export function periodReturnPct(
-  bars: DailyBar[],
-  tradingDays: number,
-  endIndex = bars.length - 1
-): number {
-  const startIndex = endIndex - tradingDays;
-  if (startIndex < 0) return NaN;
-  const startPrice = bars[startIndex].close;
-  const endPrice = bars[endIndex].close;
-  if (!startPrice) return NaN;
-  return ((endPrice - startPrice) / startPrice) * 100;
-}
-
-/**
- * Relative strength = a symbol's return minus the benchmark's return over
- * the same period. Positive means it's outperforming the benchmark
- * (money rotating in); negative means underperforming (money rotating out).
- */
-export function relativeStrength(
+export function mansfieldRelativeStrength(
   symbolBars: DailyBar[],
   benchmarkBars: DailyBar[],
-  tradingDays: number
+  period = 200,
+  endIndex = Math.min(symbolBars.length, benchmarkBars.length) - 1
 ): number {
-  const symbolReturn = periodReturnPct(symbolBars, tradingDays);
-  const benchmarkReturn = periodReturnPct(benchmarkBars, tradingDays);
-  if (isNaN(symbolReturn) || isNaN(benchmarkReturn)) return NaN;
-  return symbolReturn - benchmarkReturn;
+  if (endIndex < period - 1) return NaN;
+
+  const ratios: number[] = [];
+  for (let i = endIndex - period + 1; i <= endIndex; i++) {
+    if (!benchmarkBars[i].close) return NaN;
+    ratios.push(symbolBars[i].close / benchmarkBars[i].close);
+  }
+
+  const sma = ratios.reduce((sum, v) => sum + v, 0) / ratios.length;
+  if (!sma) return NaN;
+  return ((ratios[ratios.length - 1] / sma) - 1) * 100;
+}
+
+export function classifyCapitalFlow(
+  mansfieldRs: number,
+  moneyFlowTrend: "accumulation" | "distribution" | "neutral"
+): "accumulating" | "distributing" | "neutral" {
+  if (!isNaN(mansfieldRs) && mansfieldRs > 0 && moneyFlowTrend === "accumulation") return "accumulating";
+  if (!isNaN(mansfieldRs) && mansfieldRs < 0 && moneyFlowTrend === "distribution") return "distributing";
+  return "neutral";
 }
 
 /**

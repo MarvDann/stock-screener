@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { useTheme } from "../composables/useTheme";
 
 const router = useRouter();
+const { theme, toggleTheme, initTheme } = useTheme();
+const themeIcon = computed(() => (theme.value === "dark" ? "☼" : "☾"));
+onMounted(initTheme);
 const isRegister = ref(false);
 const email = ref("");
 const password = ref("");
@@ -41,6 +45,7 @@ async function submit() {
 
 <template>
   <div class="login-page">
+    <button class="theme-toggle" @click="toggleTheme" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`">{{ themeIcon }}</button>
     <form class="login-card" @submit.prevent="submit">
       <h1 class="login-title">Stock Screener</h1>
       <p class="login-subtitle">{{ isRegister ? "Create an account" : "Sign in to continue" }}</p>
@@ -64,7 +69,7 @@ async function submit() {
         />
       </label>
 
-      <button type="submit" class="login-btn" :disabled="loading">
+      <button type="submit" class="login-btn btn-primary" :disabled="loading">
         {{ loading ? "..." : isRegister ? "Register" : "Log in" }}
       </button>
 
@@ -85,6 +90,27 @@ async function submit() {
   justify-content: center;
   min-height: 100vh;
   background: var(--bg);
+  position: relative;
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  padding: 6px 10px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.theme-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
 }
 
 .login-card {
@@ -152,24 +178,8 @@ async function submit() {
 .login-btn {
   margin-top: 8px;
   padding: 10px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  font-family: var(--font-ui);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.login-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.login-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .login-toggle {

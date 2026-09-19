@@ -1,4 +1,4 @@
-import type { BreakoutResponse, SectorRotationResponse } from "./types";
+import type { BreakoutResponse, SectorRotationResponse, StockDetail } from "./types";
 import router from "./router";
 
 function getToken(): string | null {
@@ -50,4 +50,8 @@ export function fetchBreakout(): Promise<BreakoutResponse> {
 
 export function fetchSectorRotation(): Promise<SectorRotationResponse> {
   return fetchJson<SectorRotationResponse>("/api/sector-rotation");
+}
+
+export function fetchStockDetail(symbol: string): Promise<StockDetail> {
+  return fetchJson<StockDetail>(`/api/stock/${encodeURIComponent(symbol)}`);
 }

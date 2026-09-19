@@ -4,7 +4,7 @@ import { makeBar } from "../../__tests__/helpers";
 import { SymbolHistory } from "../../types";
 
 function makeSectorHistory(symbol: string, returnBias: number): SymbolHistory {
-  const bars = Array.from({ length: 200 }, (_, i) =>
+  const bars = Array.from({ length: 250 }, (_, i) =>
     makeBar({
       date: new Date(2024, 0, 2 + i),
       close: 100 + i * returnBias,
@@ -18,12 +18,12 @@ function makeSectorHistory(symbol: string, returnBias: number): SymbolHistory {
 }
 
 describe("runSectorRotationScreen", () => {
-  it("ranks sectors by 3-month relative strength descending", () => {
+  it("ranks sectors by Mansfield RS descending", () => {
     const benchmark = makeSectorHistory("SPY", 0.1);
     const sectors = [
-      makeSectorHistory("XLK", 0.3), // strongest
-      makeSectorHistory("XLF", 0.05), // weakest
-      makeSectorHistory("XLE", 0.2), // middle
+      makeSectorHistory("XLK", 0.3),
+      makeSectorHistory("XLF", 0.05),
+      makeSectorHistory("XLE", 0.2),
     ];
 
     const results = runSectorRotationScreen(sectors, benchmark);
@@ -55,11 +55,13 @@ describe("runSectorRotationScreen", () => {
     expect(results[0].sectorName).toBe("Technology");
   });
 
-  it("classifies money flow trend", () => {
+  it("includes mansfieldRs, moneyFlowTrend, and capitalFlow", () => {
     const benchmark = makeSectorHistory("SPY", 0.1);
     const sectors = [makeSectorHistory("XLK", 0.2)];
 
     const results = runSectorRotationScreen(sectors, benchmark);
+    expect(typeof results[0].mansfieldRs).toBe("number");
     expect(["accumulation", "distribution", "neutral"]).toContain(results[0].moneyFlowTrend);
+    expect(["accumulating", "distributing", "neutral"]).toContain(results[0].capitalFlow);
   });
 });

@@ -14,21 +14,32 @@ const search = ref("");
 
 const query = computed(() => search.value.trim().toLowerCase());
 
-const triggered = computed(() => {
-  const items = data.value?.triggered ?? [];
-  if (!query.value) return items;
-  return items.filter((c) =>
-    c.symbol.toLowerCase().includes(query.value) || c.name.toLowerCase().includes(query.value)
-  );
-});
+function rankMatch(c: { symbol: string; name: string }, q: string): number {
+  const sym = c.symbol.toLowerCase();
+  const name = c.name.toLowerCase();
+  if (sym === q) return 0;
+  if (sym.startsWith(q)) return 1;
+  if (name.startsWith(q)) return 2;
+  if (sym.includes(q) || name.includes(q)) return 3;
+  return -1;
+}
 
-const approaching = computed(() => {
-  const items = data.value?.approaching ?? [];
-  if (!query.value) return items;
-  return items.filter((c) =>
-    c.symbol.toLowerCase().includes(query.value) || c.name.toLowerCase().includes(query.value)
-  );
-});
+function filterAndRank<T extends { symbol: string; name: string }>(items: T[], q: string): T[] {
+  if (!q) return items;
+  return items
+    .map((c) => ({ c, rank: rankMatch(c, q) }))
+    .filter((r) => r.rank >= 0)
+    .sort((a, b) => a.rank - b.rank)
+    .map((r) => r.c);
+}
+
+const triggered = computed(() =>
+  filterAndRank(data.value?.triggered ?? [], query.value)
+);
+
+const approaching = computed(() =>
+  filterAndRank(data.value?.approaching ?? [], query.value)
+);
 
 const triggeredPager = usePagination(triggered);
 const approachingPager = usePagination(approaching);
@@ -64,7 +75,7 @@ onMounted(load);
           placeholder="Filter by symbol or name…"
           class="search"
         />
-        <button class="refresh" :disabled="loading" @click="load">
+        <button class="btn-primary" :disabled="loading" @click="load">
           {{ loading ? "Refreshing…" : "Refresh" }}
         </button>
       </div>
@@ -123,12 +134,6 @@ onMounted(load);
 </template>
 
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
 .header-actions {
   display: flex;
   gap: 8px;
@@ -152,30 +157,9 @@ onMounted(load);
 .search:focus {
   border-color: var(--accent);
 }
-h2 {
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
 h3 {
   color: var(--text-primary);
   font-weight: 600;
-}
-.refresh {
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.refresh:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-.refresh:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 .grid {
   display: grid;
@@ -186,25 +170,5 @@ h3 {
 .empty {
   color: var(--text-secondary);
   font-size: 13px;
-}
-.error-state {
-  background: var(--surface);
-  border: 1px solid var(--negative);
-  border-radius: 10px;
-  padding: 20px;
-  color: var(--text-primary);
-}
-.error-state .detail {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 6px 0 12px;
-}
-.error-state button {
-  background: var(--negative);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  cursor: pointer;
 }
 </style>

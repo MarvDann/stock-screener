@@ -1,49 +1,33 @@
 import { describe, it, expect } from "vitest";
 import {
-  periodReturnPct,
-  relativeStrength,
+  mansfieldRelativeStrength,
   moneyFlowScore,
   classifyMoneyFlow,
+  classifyCapitalFlow,
 } from "../relativeStrength";
 import { makeBar } from "../../__tests__/helpers";
 
-describe("periodReturnPct", () => {
-  it("computes percentage return over N bars", () => {
-    const bars = [
-      makeBar({ close: 100 }),
-      makeBar({ close: 110 }),
-      makeBar({ close: 120 }),
-    ];
-    // 2-bar return: (120 - 100) / 100 * 100 = 20%
-    expect(periodReturnPct(bars, 2)).toBeCloseTo(20);
+describe("mansfieldRelativeStrength", () => {
+  it("returns positive when symbol outperforms its own trend vs benchmark", () => {
+    const symbol = Array.from({ length: 201 }, (_, i) =>
+      makeBar({ close: 100 + i * 0.3 })
+    );
+    const benchmark = Array.from({ length: 201 }, (_, i) =>
+      makeBar({ close: 100 + i * 0.1 })
+    );
+    expect(mansfieldRelativeStrength(symbol, benchmark, 200)).toBeGreaterThan(0);
   });
 
-  it("returns NaN when not enough bars", () => {
-    const bars = [makeBar({ close: 100 })];
-    expect(periodReturnPct(bars, 5)).toBeNaN();
+  it("returns NaN when fewer than period bars available", () => {
+    const bars = Array.from({ length: 50 }, () => makeBar({ close: 100 }));
+    expect(mansfieldRelativeStrength(bars, bars, 200)).toBeNaN();
   });
 
-  it("returns NaN when start price is 0", () => {
-    const bars = [
-      makeBar({ close: 0 }),
-      makeBar({ close: 100 }),
-    ];
-    expect(periodReturnPct(bars, 1)).toBeNaN();
-  });
-});
-
-describe("relativeStrength", () => {
-  it("returns symbol return minus benchmark return", () => {
-    const symbol = [makeBar({ close: 100 }), makeBar({ close: 115 })];
-    const benchmark = [makeBar({ close: 100 }), makeBar({ close: 110 })];
-    // symbol: +15%, benchmark: +10% → RS = 5%
-    expect(relativeStrength(symbol, benchmark, 1)).toBeCloseTo(5);
-  });
-
-  it("returns NaN when either has insufficient bars", () => {
-    const symbol = [makeBar({ close: 100 })];
-    const benchmark = [makeBar({ close: 100 }), makeBar({ close: 110 })];
-    expect(relativeStrength(symbol, benchmark, 5)).toBeNaN();
+  it("returns ~0 when symbol and benchmark move identically", () => {
+    const bars = Array.from({ length: 201 }, (_, i) =>
+      makeBar({ close: 100 + i * 0.1 })
+    );
+    expect(mansfieldRelativeStrength(bars, bars, 200)).toBeCloseTo(0);
   });
 });
 
@@ -93,5 +77,28 @@ describe("classifyMoneyFlow", () => {
 
   it("returns neutral for NaN", () => {
     expect(classifyMoneyFlow(NaN)).toBe("neutral");
+  });
+});
+
+describe("classifyCapitalFlow", () => {
+  it("returns accumulating when RS > 0 and money flow is accumulation", () => {
+    expect(classifyCapitalFlow(5, "accumulation")).toBe("accumulating");
+  });
+
+  it("returns distributing when RS < 0 and money flow is distribution", () => {
+    expect(classifyCapitalFlow(-3, "distribution")).toBe("distributing");
+  });
+
+  it("returns neutral when signals disagree", () => {
+    expect(classifyCapitalFlow(5, "distribution")).toBe("neutral");
+    expect(classifyCapitalFlow(-3, "accumulation")).toBe("neutral");
+  });
+
+  it("returns neutral when RS is NaN", () => {
+    expect(classifyCapitalFlow(NaN, "accumulation")).toBe("neutral");
+  });
+
+  it("returns neutral when money flow is neutral", () => {
+    expect(classifyCapitalFlow(5, "neutral")).toBe("neutral");
   });
 });

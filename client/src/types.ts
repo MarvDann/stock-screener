@@ -20,6 +20,7 @@ export interface BreakoutCandidate {
     daysSinceCross: number | null;
   };
   bars: DailyBar[];
+  sma50Series: number[];
   sma150Series: number[];
 }
 
@@ -29,13 +30,28 @@ export interface BreakoutResponse {
   warnings: string[];
 }
 
+export interface StockDetail {
+  symbol: string;
+  name: string;
+  bars: DailyBar[];
+  sma50Series: number[];
+  sma150Series: number[];
+  details: {
+    close: number;
+    sma150: number;
+    pctBelowSma150: number;
+    rangeContractionPct: number;
+    volumeRatio: number;
+    daysSinceCross: number | null;
+  } | null;
+}
+
 export interface SectorRotationResult {
   sectorSymbol: string;
   sectorName: string;
-  relativeStrength1m: number;
-  relativeStrength3m: number;
-  relativeStrength6m: number;
+  mansfieldRs: number;
   moneyFlowTrend: "accumulation" | "distribution" | "neutral";
+  capitalFlow: "accumulating" | "distributing" | "neutral";
   rank: number;
 }
 
