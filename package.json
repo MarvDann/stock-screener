@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Consolidation/breakout screener + sector rotation tracker",
   "main": "dist/server.js",
+  "license": "MIT",
   "type": "commonjs",
   "scripts": {
     "build": "tsc",
