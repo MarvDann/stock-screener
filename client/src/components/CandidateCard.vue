@@ -25,9 +25,9 @@ function summary(c: BreakoutCandidate): string {
   if (c.state === "triggered") {
     const days = c.details.daysSinceCross;
     const dayLabel = days === 0 ? "today" : `${days} day(s) ago`;
-    return `${c.details.volumeRatio.toFixed(1)}x volume · crossed MA150 ${dayLabel} · ${c.details.rangeContractionPct.toFixed(1)}% range`;
+    return `${c.details.volumeRatio.toFixed(1)}x volume · crossed MA50 ${dayLabel} · ${c.details.rangeContractionPct.toFixed(1)}% range`;
   }
-  return `${c.details.pctBelowSma150.toFixed(1)}% below 150-day SMA · ${c.details.rangeContractionPct.toFixed(1)}% range`;
+  return `${c.details.pctBelowSma50.toFixed(1)}% below 50-day SMA · ${c.details.rangeContractionPct.toFixed(1)}% range`;
 }
 </script>
 

@@ -1,6 +1,7 @@
 import express from "express";
 import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { FmpMarketDataProvider } from "./data/fmpProvider";
+import { getStockFundamentals } from "./data/yahooFinancials";
 import { runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { SAMPLE_UNIVERSE, BENCHMARK_SYMBOL } from "./universe";
@@ -130,6 +131,10 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
     }
     const visibleCount = Math.min(history.bars.length, DETAIL_CHART_BARS);
     const screenResult = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, STOCK_NAMES[symbol] ?? "");
+    const fundamentals = await getStockFundamentals(symbol).catch((err) => {
+      console.error(`Fundamentals fetch failed for ${symbol}:`, err.message);
+      return { financials: null, epsHistory: [] };
+    });
     const response: StockDetailResponse = {
       symbol,
       name: STOCK_NAMES[symbol] ?? "",
@@ -137,6 +142,8 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
       sma50Series: buildSmaSeries(history.bars, 50, visibleCount),
       sma150Series: buildSmaSeries(history.bars, 150, visibleCount),
       details: screenResult?.details ?? null,
+      financials: fundamentals.financials,
+      epsHistory: fundamentals.epsHistory,
     };
     res.json(response);
   } catch (err) {

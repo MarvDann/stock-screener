@@ -17,45 +17,48 @@ function makeHistory(barCount: number, closeValue = 100): SymbolHistory {
 }
 
 describe("runBreakoutScreen", () => {
-  it("returns null when fewer than 150 bars", () => {
-    const history = makeHistory(100);
+  it("returns null when fewer than 50 bars", () => {
+    const history = makeHistory(30);
     expect(runBreakoutScreen(history)).toBeNull();
   });
 
   it("returns null when price is well above SMA and no recent cross", () => {
     // All bars at the same price → SMA = price, close = price, no cross
-    const history = makeHistory(200, 100);
+    const history = makeHistory(80, 100);
     expect(runBreakoutScreen(history)).toBeNull();
   });
 
   it("detects approaching state when below SMA and consolidating", () => {
-    // Build bars: first 160 bars at high price, then 40 bars at lower price with tight range
-    const highBars = Array.from({ length: 160 }, (_, i) =>
-      makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 118, high: 125, low: 115 })
+    // First 50 bars at a high price establish an older trend high (outside the 50-day SMA window).
+    const highBars = Array.from({ length: 50 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 130, open: 128, high: 135, low: 125 })
     );
-    // Drop below SMA with a tight consolidation
-    const lowBars = Array.from({ length: 55 }, (_, i) =>
+    // Next 35 bars drop to a lower, wider-ranged price — the "prior period" for the contraction check.
+    const midBars = Array.from({ length: 35 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 120, open: 119, high: 128, low: 112 })
+    );
+    // Last 15 bars tighten up close to (but below) the resulting 50-day SMA.
+    const lowBars = Array.from({ length: 15 }, (_, i) =>
       makeBar({
         date: new Date(2024, 6, i + 1),
-        close: 115,
-        open: 114.5,
-        high: 115.5,
-        low: 114.5,
+        close: 118,
+        open: 117.8,
+        high: 118.5,
+        low: 117.5,
       })
     );
-    const history: SymbolHistory = { symbol: "TEST", bars: [...highBars, ...lowBars] };
+    const history: SymbolHistory = { symbol: "TEST", bars: [...highBars, ...midBars, ...lowBars] };
     const result = runBreakoutScreen(history);
 
-    if (result) {
-      expect(result.state).toBe("approaching");
-      expect(result.details.daysSinceCross).toBeNull();
-    }
+    expect(result).not.toBeNull();
+    expect(result?.state).toBe("approaching");
+    expect(result?.details.daysSinceCross).toBeNull();
   });
 });
 
 describe("scanBreakoutScreen", () => {
   it("splits results into triggered and approaching", () => {
-    const histories = [makeHistory(200), makeHistory(50)];
+    const histories = [makeHistory(80), makeHistory(50)];
     const { triggered, approaching } = scanBreakoutScreen(histories);
     // With flat data neither should trigger, but should not throw
     expect(Array.isArray(triggered)).toBe(true);
@@ -63,7 +66,7 @@ describe("scanBreakoutScreen", () => {
   });
 
   it("filters out null results from symbols with insufficient data", () => {
-    const histories = [makeHistory(50), makeHistory(30)];
+    const histories = [makeHistory(40), makeHistory(30)];
     const { triggered, approaching } = scanBreakoutScreen(histories);
     expect(triggered).toHaveLength(0);
     expect(approaching).toHaveLength(0);

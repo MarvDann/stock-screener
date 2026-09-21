@@ -4,6 +4,8 @@ import { useRoute, useRouter } from "vue-router";
 import { fetchStockDetail } from "../api";
 import type { StockDetail } from "../types";
 import PriceChart from "../components/PriceChart.vue";
+import EpsChart from "../components/EpsChart.vue";
+import { formatAbbreviatedCurrency, formatPercent, formatRatio } from "../utils/format";
 
 const route = useRoute();
 const router = useRouter();
@@ -76,16 +78,12 @@ onMounted(load);
         </div>
         <div class="stat-card">
           <span class="stat-label">50-day SMA</span>
-          <span class="stat-value">{{ formatNumber(data.sma50Series[data.sma50Series.length - 1]) }}</span>
+          <span class="stat-value">{{ formatNumber(data.details.sma50) }}</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">150-day SMA</span>
-          <span class="stat-value">{{ formatNumber(data.details.sma150) }}</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">% vs 150-SMA</span>
-          <span class="stat-value" :class="data.details.pctBelowSma150 > 0 ? 'neg' : 'pos'">
-            {{ formatNumber(data.details.pctBelowSma150) }}%
+          <span class="stat-label">% vs 50-SMA</span>
+          <span class="stat-value" :class="data.details.pctBelowSma50 > 0 ? 'neg' : 'pos'">
+            {{ formatNumber(data.details.pctBelowSma50) }}%
           </span>
         </div>
         <div class="stat-card">
@@ -96,9 +94,29 @@ onMounted(load);
           <span class="stat-label">Range Contraction</span>
           <span class="stat-value">{{ formatNumber(data.details.rangeContractionPct, 1) }}%</span>
         </div>
-        <div v-if="data.details.daysSinceCross !== null" class="stat-card">
-          <span class="stat-label">Days Since Cross</span>
-          <span class="stat-value">{{ data.details.daysSinceCross }}</span>
+        <div v-if="data.financials" class="stat-card">
+          <span class="stat-label">Gross Margin</span>
+          <span class="stat-value">{{ formatPercent(data.financials.grossMargin) }}</span>
+        </div>
+        <div v-if="data.financials" class="stat-card">
+          <span class="stat-label">Operating Margin</span>
+          <span class="stat-value">{{ formatPercent(data.financials.operatingMargin) }}</span>
+        </div>
+        <div v-if="data.financials" class="stat-card">
+          <span class="stat-label">Free Cash Flow</span>
+          <span class="stat-value">{{ formatAbbreviatedCurrency(data.financials.freeCashflow) }}</span>
+        </div>
+        <div v-if="data.financials" class="stat-card">
+          <span class="stat-label">Debt / Equity</span>
+          <span class="stat-value">{{ formatRatio(data.financials.debtToEquity) }}</span>
+        </div>
+        <div v-if="data.financials" class="stat-card">
+          <span class="stat-label">Trailing P/E Ratio</span>
+          <span class="stat-value">{{ formatRatio(data.financials.trailingPE) }}</span>
+        </div>
+        <div v-if="data.epsHistory.length > 0" class="stat-card eps-card">
+          <span class="stat-label">EPS (Trailing 4 Quarters)</span>
+          <EpsChart :values="data.epsHistory" />
         </div>
       </div>
     </template>
@@ -205,6 +223,13 @@ onMounted(load);
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.eps-card {
+  min-height: 90px;
+}
+.eps-card .eps-chart,
+.eps-card .eps-empty {
+  flex: 1;
 }
 .stat-label {
   font-size: 11px;

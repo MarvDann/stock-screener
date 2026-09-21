@@ -13,8 +13,8 @@ export interface BreakoutCandidate {
   state: "triggered" | "approaching";
   details: {
     close: number;
-    sma150: number;
-    pctBelowSma150: number;
+    sma50: number;
+    pctBelowSma50: number;
     rangeContractionPct: number;
     volumeRatio: number;
     daysSinceCross: number | null;
@@ -30,6 +30,18 @@ export interface BreakoutResponse {
   warnings: string[];
 }
 
+export interface StockFinancials {
+  /** Decimal fraction, e.g. 0.4235 for 42.35% */
+  grossMargin: number;
+  /** Decimal fraction, e.g. 0.301 for 30.10% */
+  operatingMargin: number;
+  /** Raw dollar amount, e.g. 1200000000 */
+  freeCashflow: number;
+  /** Ratio, e.g. 0.48 */
+  debtToEquity: number;
+  trailingPE: number;
+}
+
 export interface StockDetail {
   symbol: string;
   name: string;
@@ -38,12 +50,15 @@ export interface StockDetail {
   sma150Series: number[];
   details: {
     close: number;
-    sma150: number;
-    pctBelowSma150: number;
+    sma50: number;
+    pctBelowSma50: number;
     rangeContractionPct: number;
     volumeRatio: number;
     daysSinceCross: number | null;
   } | null;
+  financials: StockFinancials | null;
+  /** EPS per quarter, oldest first, for the trailing 4 quarters */
+  epsHistory: number[];
 }
 
 export interface SectorRotationResult {

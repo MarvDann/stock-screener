@@ -50,12 +50,12 @@ export interface BreakoutScreenResult {
   state: "triggered" | "approaching";
   details: {
     close: number;
-    sma150: number;
-    /** (sma150 - close) / sma150 * 100. Negative once price is above the SMA. */
-    pctBelowSma150: number;
+    sma50: number;
+    /** (sma50 - close) / sma50 * 100. Negative once price is above the SMA. */
+    pctBelowSma50: number;
     rangeContractionPct: number; // recent range as % of price, lower = tighter
     volumeRatio: number; // today's volume vs its average
-    /** Trading days since the MA150 cross (0 = today). Null when state is "approaching". */
+    /** Trading days since the MA50 cross (0 = today). Null when state is "approaching". */
     daysSinceCross: number | null;
   };
 }
@@ -73,6 +73,22 @@ export interface BreakoutScanResponse {
   warnings: string[];
 }
 
+/**
+ * Fundamental ratios for a symbol, sourced from yahoo-finance2's
+ * financialData and summaryDetail quoteSummary modules.
+ */
+export interface StockFinancials {
+  /** Decimal fraction, e.g. 0.4235 for 42.35% */
+  grossMargin: number;
+  /** Decimal fraction, e.g. 0.301 for 30.10% */
+  operatingMargin: number;
+  /** Raw dollar amount, e.g. 1200000000 */
+  freeCashflow: number;
+  /** Ratio, e.g. 0.48 */
+  debtToEquity: number;
+  trailingPE: number;
+}
+
 export interface StockDetailResponse {
   symbol: string;
   name: string;
@@ -80,6 +96,9 @@ export interface StockDetailResponse {
   sma50Series: number[];
   sma150Series: number[];
   details: BreakoutScreenResult["details"] | null;
+  financials: StockFinancials | null;
+  /** EPS per quarter, oldest first, for the trailing 4 quarters */
+  epsHistory: number[];
 }
 
 export interface SectorRotationScanResponse {

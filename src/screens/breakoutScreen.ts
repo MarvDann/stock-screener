@@ -2,18 +2,21 @@ import { BreakoutScreenResult, SymbolHistory } from "../types";
 import { sma } from "../indicators/movingAverage";
 import { isVolatilityContracting, rangeContractionPct, volumeRatio } from "../indicators/volatility";
 
+/** SMA period the breakout trigger and "approaching" state are measured against. */
+const TRIGGER_SMA_PERIOD = 50;
+
 export interface BreakoutScreenConfig {
   /** Bars in the "tight" consolidation window used by the heartbeat check. Default 15 trading days. */
   consolidationPeriod: number;
   /** Prior window compared against to confirm contraction. Default 40 trading days. */
   priorPeriod: number;
-  /** Max distance below the 150-day SMA, as a percent, to count as "approaching". Default 5. */
+  /** Max distance below the 50-day SMA, as a percent, to count as "approaching". Default 5. */
   approachingThresholdPct: number;
   /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 1.4x. */
   minTriggerVolumeRatio: number;
   /** Lookback for the average-volume baseline used by the trigger's volume check. Default 20 trading days. */
   volumeAvgPeriod: number;
-  /** How many trailing trading days (including today) to look back for the MA150 cross. Default 3. */
+  /** How many trailing trading days (including today) to look back for the MA50 cross. Default 3. */
   crossLookbackDays: number;
 }
 
@@ -29,7 +32,7 @@ export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
 /**
  * Finds the most recent trading day, within the last `lookbackDays` days
  * (inclusive of `endIndex`), on which the close crossed from at-or-below
- * the 150-day SMA to above it. Returns null if price isn't above the SMA
+ * the 50-day SMA to above it. Returns null if price isn't above the SMA
  * today, or no such crossing occurred in the window.
  */
 function findCrossDayIndex(
@@ -37,12 +40,12 @@ function findCrossDayIndex(
   endIndex: number,
   lookbackDays: number
 ): number | null {
-  const todaySma = sma(bars, 150, endIndex);
+  const todaySma = sma(bars, TRIGGER_SMA_PERIOD, endIndex);
   if (isNaN(todaySma) || bars[endIndex].close <= todaySma) return null;
 
   for (let d = endIndex; d > endIndex - lookbackDays && d - 1 >= 0; d--) {
-    const smaAtD = sma(bars, 150, d);
-    const smaAtPrev = sma(bars, 150, d - 1);
+    const smaAtD = sma(bars, TRIGGER_SMA_PERIOD, d);
+    const smaAtPrev = sma(bars, TRIGGER_SMA_PERIOD, d - 1);
     if (isNaN(smaAtD) || isNaN(smaAtPrev)) continue;
     if (bars[d].close > smaAtD && bars[d - 1].close <= smaAtPrev) {
       return d;
@@ -53,7 +56,7 @@ function findCrossDayIndex(
 
 /**
  * Runs the breakout screen against one symbol's history using the
- * 150-day SMA cross definition. Requires at least 150 bars to compute the
+ * 50-day SMA cross definition. Requires at least 50 bars to compute the
  * SMA at all; returns null below that (naturally means "no state" once
  * enough bars exist and none of the conditions hold, too).
  */
@@ -64,11 +67,11 @@ export function runBreakoutScreen(
 ): BreakoutScreenResult | null {
   const { bars, symbol } = history;
   const endIndex = bars.length - 1;
-  const sma150 = sma(bars, 150, endIndex);
-  if (isNaN(sma150)) return null;
+  const sma50 = sma(bars, TRIGGER_SMA_PERIOD, endIndex);
+  if (isNaN(sma50)) return null;
 
   const close = bars[endIndex].close;
-  const pctBelowSma150 = ((sma150 - close) / sma150) * 100;
+  const pctBelowSma50 = ((sma50 - close) / sma50) * 100;
 
   const crossDayIndex = findCrossDayIndex(bars, endIndex, config.crossLookbackDays);
   if (crossDayIndex !== null) {
@@ -88,8 +91,8 @@ export function runBreakoutScreen(
         state: "triggered",
         details: {
           close,
-          sma150,
-          pctBelowSma150,
+          sma50,
+          pctBelowSma50,
           rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, heartbeatAnchor),
           volumeRatio: volRatio,
           daysSinceCross: endIndex - crossDayIndex,
@@ -99,8 +102,8 @@ export function runBreakoutScreen(
   }
 
   const isApproaching =
-    close < sma150 &&
-    pctBelowSma150 <= config.approachingThresholdPct &&
+    close < sma50 &&
+    pctBelowSma50 <= config.approachingThresholdPct &&
     isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex);
 
   if (isApproaching) {
@@ -110,8 +113,8 @@ export function runBreakoutScreen(
       state: "approaching",
       details: {
         close,
-        sma150,
-        pctBelowSma150,
+        sma50,
+        pctBelowSma50,
         rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, endIndex),
         volumeRatio: volumeRatio(bars, config.volumeAvgPeriod, endIndex),
         daysSinceCross: null,
@@ -141,7 +144,7 @@ export function scanBreakoutScreen(
 
   const approaching = results
     .filter((r) => r.state === "approaching")
-    .sort((a, b) => a.details.pctBelowSma150 - b.details.pctBelowSma150);
+    .sort((a, b) => a.details.pctBelowSma50 - b.details.pctBelowSma50);
 
   return {
     triggered,
