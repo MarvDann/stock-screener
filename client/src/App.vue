@@ -3,6 +3,9 @@ import { useRouter, useRoute } from "vue-router";
 import { computed, onMounted } from "vue";
 import { isAuthenticated, clearToken } from "./api";
 import { useTheme } from "./composables/useTheme";
+import { resetStockCardCache } from "./composables/useStockCards";
+import { resetCachedResources } from "./composables/useCachedResource";
+import { cacheClear } from "./utils/persistentCache";
 
 const router = useRouter();
 const route = useRoute();
@@ -15,6 +18,9 @@ onMounted(initTheme);
 
 function logout() {
   clearToken();
+  resetStockCardCache();
+  resetCachedResources();
+  void cacheClear();
   router.push("/login");
 }
 </script>
@@ -22,9 +28,14 @@ function logout() {
 <template>
   <div v-if="showSidebar" class="app-shell">
     <nav class="sidebar">
-      <h1 class="brand">Stock Screener</h1>
+      <RouterLink to="/" class="brand">Stock Screener</RouterLink>
+      <RouterLink to="/" class="nav-link">Home</RouterLink>
+      <RouterLink to="/stock-charts" class="nav-link">Stock Charts</RouterLink>
+      <RouterLink to="/etfs" class="nav-link">ETFs</RouterLink>
       <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
       <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
+      <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>
+      <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
       <div class="sidebar-bottom">
         <button class="theme-btn" @click="toggleTheme" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`">{{ themeIcon }}</button>
         <button class="logout-btn" @click="logout">Log out</button>
@@ -58,6 +69,8 @@ function logout() {
   overflow-y: auto;
 }
 .brand {
+  display: block;
+  text-decoration: none;
   font-size: 15px;
   font-weight: 600;
   margin: 0 0 16px;

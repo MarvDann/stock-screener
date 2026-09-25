@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { flushPromises, shallowMount } from "@vue/test-utils";
 import { createRouter, createMemoryHistory } from "vue-router";
 import CandidateCard from "../CandidateCard.vue";
-import type { BreakoutCandidate } from "../../types";
+import type { StockCard } from "../../types";
 
-function makeCandidate(overrides: Partial<BreakoutCandidate> = {}): BreakoutCandidate {
+function makeCandidate(overrides: Partial<StockCard> = {}): StockCard {
   return {
     symbol: "AAPL",
     name: "Apple Inc.",
@@ -17,6 +17,7 @@ function makeCandidate(overrides: Partial<BreakoutCandidate> = {}): BreakoutCand
       volumeRatio: 2.3,
       daysSinceCross: 0,
     },
+    currency: "USD",
     bars: [],
     sma50Series: [],
     sma150Series: [],
@@ -32,9 +33,27 @@ const router = createRouter({
   ],
 });
 
-function mountCard(candidate: BreakoutCandidate) {
+function makeBar(close: number) {
+  return { date: "2024-01-02", open: close, high: close, low: close, close, volume: 1000 };
+}
+
+function makeStock(overrides: Partial<StockCard> = {}): StockCard {
+  return {
+    symbol: "KO",
+    name: "Coca-Cola",
+    state: null,
+    details: null,
+    currency: null,
+    bars: [makeBar(60), makeBar(55)],
+    sma50Series: [NaN, 50],
+    sma150Series: [NaN, NaN],
+    ...overrides,
+  };
+}
+
+function mountCard(candidate: StockCard, showState = false) {
   return shallowMount(CandidateCard, {
-    props: { candidate },
+    props: { candidate, showState },
     global: { plugins: [router] },
   });
 }
@@ -64,7 +83,7 @@ describe("CandidateCard", () => {
 
   it("shows days-ago wording for a triggered candidate that crossed earlier", () => {
     const wrapper = mountCard(
-      makeCandidate({ details: { ...makeCandidate().details, daysSinceCross: 3 } })
+      makeCandidate({ details: { ...makeCandidate().details!, daysSinceCross: 3 } })
     );
     expect(wrapper.find(".summary").text()).toContain("crossed MA50 3 day(s) ago");
   });
@@ -72,6 +91,33 @@ describe("CandidateCard", () => {
   it("summarizes an approaching candidate with distance from the SMA", () => {
     const wrapper = mountCard(makeCandidate({ state: "approaching" }));
     expect(wrapper.find(".summary").text()).toBe("-5.8% below 50-day SMA · 4.2% range");
+  });
+
+  it("shows the close with its currency symbol", () => {
+    expect(mountCard(makeCandidate()).find(".close").text()).toBe("$190.50");
+    expect(mountCard(makeCandidate({ currency: "GBP" })).find(".close").text()).toBe("£190.50");
+  });
+
+  it("uses the last bar's close and SMA distance for a stock that isn't a candidate", () => {
+    const wrapper = mountCard(makeStock());
+    expect(wrapper.find(".close").text()).toBe("55.00");
+    expect(wrapper.find(".summary").text()).toBe("10.0% above 50-day SMA");
+  });
+
+  it("says below when a non-candidate trades under its SMA", () => {
+    const wrapper = mountCard(makeStock({ bars: [makeBar(45)], sma50Series: [50] }));
+    expect(wrapper.find(".summary").text()).toBe("10.0% below 50-day SMA");
+  });
+
+  it("explains when there isn't enough history for the SMA", () => {
+    const wrapper = mountCard(makeStock({ sma50Series: [NaN, NaN] }));
+    expect(wrapper.find(".summary").text()).toBe("Not enough history for a 50-day SMA");
+  });
+
+  it("shows a state badge only when asked and the stock has a state", () => {
+    expect(mountCard(makeCandidate()).find(".state").exists()).toBe(false);
+    expect(mountCard(makeCandidate(), true).find(".state").text()).toBe("Triggered");
+    expect(mountCard(makeStock(), true).find(".state").exists()).toBe(false);
   });
 
   it("navigates to the stock detail page on click", async () => {

@@ -34,7 +34,7 @@ async function submit() {
     }
 
     localStorage.setItem("token", data.token);
-    router.push("/breakout");
+    router.push("/");
   } catch {
     error.value = "Network error";
   } finally {

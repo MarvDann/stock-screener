@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatPercent, formatAbbreviatedCurrency, formatRatio } from "../format";
+import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatPrice, formatRatio } from "../format";
 
 describe("formatPercent", () => {
   it("converts a decimal fraction to a percentage string with 2 decimal places", () => {
@@ -69,5 +69,37 @@ describe("formatRatio", () => {
 
   it("preserves the sign for a negative ratio", () => {
     expect(formatRatio(-0.25)).toBe("-0.25");
+  });
+});
+
+describe("currencySymbol", () => {
+  it("maps ISO codes to their symbols", () => {
+    expect(currencySymbol("USD")).toBe("$");
+    expect(currencySymbol("GBP")).toBe("£");
+    expect(currencySymbol("EUR")).toBe("€");
+  });
+
+  it("falls back to the code for anything Intl doesn't recognise", () => {
+    expect(currencySymbol("not-a-code")).toBe("not-a-code");
+  });
+});
+
+describe("formatPrice", () => {
+  it("prefixes the currency symbol with two decimals", () => {
+    expect(formatPrice(190.5, "USD")).toBe("$190.50");
+    expect(formatPrice(36.11, "GBP")).toBe("£36.11");
+    expect(formatPrice(1234.5, "EUR")).toBe("€1,234.50");
+  });
+
+  it("shows just the number when the currency is unknown", () => {
+    expect(formatPrice(36.11, null)).toBe("36.11");
+    expect(formatPrice(36.11, "not-a-code")).toBe("36.11");
+  });
+});
+
+describe("formatAbbreviatedCurrency with a currency", () => {
+  it("uses that currency's symbol", () => {
+    expect(formatAbbreviatedCurrency(1_600_000_000, "EUR")).toBe("€1.6B");
+    expect(formatAbbreviatedCurrency(-2_500_000, "GBP")).toBe("-£2.5M");
   });
 });

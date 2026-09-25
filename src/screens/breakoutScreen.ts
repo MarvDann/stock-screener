@@ -12,21 +12,30 @@ export interface BreakoutScreenConfig {
   priorPeriod: number;
   /** Max distance below the 50-day SMA, as a percent, to count as "approaching". Default 5. */
   approachingThresholdPct: number;
-  /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 1.4x. */
+  /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 2x. */
   minTriggerVolumeRatio: number;
   /** Lookback for the average-volume baseline used by the trigger's volume check. Default 20 trading days. */
   volumeAvgPeriod: number;
   /** How many trailing trading days (including today) to look back for the MA50 cross. Default 3. */
   crossLookbackDays: number;
+  /** Trading days over which the 50-day SMA's slope is measured for "approaching". Default 10. */
+  slopeLookbackDays: number;
+  /**
+   * Minimum % change in the 50-day SMA over `slopeLookbackDays` to count as "approaching".
+   * Slightly negative so a leveled-out SMA still qualifies. Default -0.5.
+   */
+  minSma50SlopePct: number;
 }
 
 export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
   consolidationPeriod: 15,
   priorPeriod: 40,
   approachingThresholdPct: 5,
-  minTriggerVolumeRatio: 1.4,
+  minTriggerVolumeRatio: 2,
   volumeAvgPeriod: 20,
   crossLookbackDays: 3,
+  slopeLookbackDays: 10,
+  minSma50SlopePct: -0.5,
 };
 
 /**
@@ -101,9 +110,14 @@ export function runBreakoutScreen(
     }
   }
 
+  // Leveled out or turning up — excludes stocks sliding under a falling 50-day SMA.
+  const priorSma50 = sma(bars, TRIGGER_SMA_PERIOD, endIndex - config.slopeLookbackDays);
+  const sma50SlopePct = ((sma50 - priorSma50) / priorSma50) * 100;
+
   const isApproaching =
     close < sma50 &&
     pctBelowSma50 <= config.approachingThresholdPct &&
+    sma50SlopePct >= config.minSma50SlopePct &&
     isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex);
 
   if (isApproaching) {

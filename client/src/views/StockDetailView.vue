@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchStockDetail } from "../api";
 import type { StockDetail } from "../types";
 import PriceChart from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
-import { formatAbbreviatedCurrency, formatPercent, formatRatio } from "../utils/format";
+import { formatAbbreviatedCurrency, formatPercent, formatPrice, formatRatio } from "../utils/format";
 
 const route = useRoute();
 const router = useRouter();
@@ -26,12 +26,29 @@ async function load() {
   }
 }
 
+/** Latest close — from the screen when the stock qualifies, otherwise the last bar. */
+const lastClose = computed(() => data.value?.details?.close ?? data.value?.bars.at(-1)?.close ?? null);
+
 function formatNumber(n: number, decimals = 2): string {
   return n.toFixed(decimals);
 }
 
+/**
+ * Where the back button goes: the page you came from — filters, sector and
+ * all — when it's a titled page, otherwise Home (e.g. opened from a link).
+ */
+const backTarget = (() => {
+  const previous = router.options.history.state.back;
+  if (typeof previous === "string") {
+    const title = router.resolve(previous).meta.title;
+    if (typeof title === "string") return { title, inHistory: true };
+  }
+  return { title: "Home", inHistory: false };
+})();
+
 function back() {
-  router.push("/breakout");
+  if (backTarget.inHistory) router.back();
+  else router.push("/");
 }
 
 onMounted(load);
@@ -40,12 +57,12 @@ onMounted(load);
 <template>
   <div>
     <div class="detail-header">
-      <button class="back-btn" @click="back">&larr; Breakout</button>
+      <button class="back-btn" @click="back">&larr; {{ backTarget.title }}</button>
       <div class="title-group">
         <h2>{{ data?.name || symbol }}</h2>
         <span class="ticker-badge">{{ symbol }}</span>
       </div>
-      <span v-if="data?.details" class="price">{{ formatNumber(data.details.close) }}</span>
+      <span v-if="data && lastClose != null" class="price">{{ formatPrice(lastClose, data.currency) }}</span>
     </div>
 
     <div v-if="loading" class="loading">Loading...</div>
@@ -74,11 +91,11 @@ onMounted(load);
       <div v-if="data.details" class="stats-grid">
         <div class="stat-card">
           <span class="stat-label">Close</span>
-          <span class="stat-value">{{ formatNumber(data.details.close) }}</span>
+          <span class="stat-value">{{ formatPrice(data.details.close, data.currency) }}</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">50-day SMA</span>
-          <span class="stat-value">{{ formatNumber(data.details.sma50) }}</span>
+          <span class="stat-value">{{ formatPrice(data.details.sma50, data.currency) }}</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">% vs 50-SMA</span>
@@ -104,7 +121,7 @@ onMounted(load);
         </div>
         <div v-if="data.financials" class="stat-card">
           <span class="stat-label">Free Cash Flow</span>
-          <span class="stat-value">{{ formatAbbreviatedCurrency(data.financials.freeCashflow) }}</span>
+          <span class="stat-value">{{ formatAbbreviatedCurrency(data.financials.freeCashflow, data.financials.financialCurrency ?? "USD") }}</span>
         </div>
         <div v-if="data.financials" class="stat-card">
           <span class="stat-label">Debt / Equity</span>

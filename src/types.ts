@@ -1,3 +1,5 @@
+import type { Breadth, GroupStats, Mover } from "./screens/marketOverview";
+
 /**
  * A single day's OHLCV bar.
  */
@@ -41,6 +43,14 @@ export interface MarketDataProvider {
   ): Promise<SymbolHistory[]>;
 }
 
+/** What the data provider knows about a ticker beyond its price history. */
+export interface TickerProfile {
+  sector: string;
+  industry: string;
+  /** Trading currency as quoted, e.g. "USD" or "GBp" (pence). */
+  currency: string | null;
+}
+
 /**
  * Result of running the breakout screen against one symbol.
  */
@@ -60,16 +70,39 @@ export interface BreakoutScreenResult {
   };
 }
 
-/** A breakout screen result plus enough recent bars to chart it client-side. */
-export interface Candidate extends BreakoutScreenResult {
+/**
+ * A breakout screen result as the API returns it. Charts aren't included —
+ * clients fetch those a page at a time from /api/stocks.
+ */
+export interface BreakoutScanResult extends BreakoutScreenResult {
+  /** ISO currency prices are in, after converting minor units (pence → pounds). Null if not looked up yet. */
+  currency: string | null;
+}
+
+/**
+ * Any tracked ticker, chartable client-side. `state` and `details` are
+ * null unless the stock currently qualifies for the breakout screen.
+ */
+export interface StockCard {
+  symbol: string;
+  name: string;
+  state: BreakoutScreenResult["state"] | null;
+  details: BreakoutScreenResult["details"] | null;
+  /** ISO currency prices are in, after converting minor units (pence → pounds). Null if not looked up yet. */
+  currency: string | null;
   bars: DailyBar[];
   sma50Series: number[];
   sma150Series: number[];
 }
 
+export interface StocksResponse {
+  stocks: StockCard[];
+  warnings: string[];
+}
+
 export interface BreakoutScanResponse {
-  triggered: Candidate[];
-  approaching: Candidate[];
+  triggered: BreakoutScanResult[];
+  approaching: BreakoutScanResult[];
   warnings: string[];
 }
 
@@ -87,11 +120,15 @@ export interface StockFinancials {
   /** Ratio, e.g. 0.48 */
   debtToEquity: number;
   trailingPE: number;
+  /** ISO currency the company reports in (may differ from its trading currency), e.g. "USD". */
+  financialCurrency: string | null;
 }
 
 export interface StockDetailResponse {
   symbol: string;
   name: string;
+  /** ISO currency prices are in, after converting minor units (pence → pounds). */
+  currency: string | null;
   bars: DailyBar[];
   sma50Series: number[];
   sma150Series: number[];
@@ -99,6 +136,33 @@ export interface StockDetailResponse {
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];
+}
+
+/** Everything the home page shows about the tracked universe, from one scan. */
+export interface OverviewResponse {
+  asOf: string | null;
+  /** Tracked tickers, including any that failed to fetch. */
+  tracked: number;
+  breadth: Breadth;
+  gainers: (Mover & { currency: string | null })[];
+  losers: (Mover & { currency: string | null })[];
+  breakouts: {
+    triggeredCount: number;
+    approachingCount: number;
+    /** Strongest triggered setups first (by volume ratio). */
+    top: BreakoutScanResult[];
+  };
+  warnings: string[];
+}
+
+/**
+ * Latest-day stats per sector and sub-sector of the tracked tickers.
+ * `sector`/`industry` are "" for tickers without one.
+ */
+export interface SectorStatsResponse {
+  asOf: string | null;
+  sectors: (GroupStats & { sector: string })[];
+  industries: (GroupStats & { sector: string; industry: string })[];
 }
 
 export interface SectorRotationScanResponse {

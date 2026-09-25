@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { flushPromises, shallowMount, type VueWrapper } from "@vue/test-utils";
-import { createRouter, createMemoryHistory } from "vue-router";
+import { createRouter, createMemoryHistory, createWebHistory } from "vue-router";
 import StockDetailView from "../StockDetailView.vue";
 import EpsChart from "../../components/EpsChart.vue";
 import type { StockDetail } from "../../types";
@@ -14,6 +14,7 @@ function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
   return {
     symbol: "AAPL",
     name: "Apple Inc.",
+    currency: "USD",
     bars: [],
     sma50Series: [190],
     sma150Series: [180],
@@ -31,6 +32,7 @@ function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
       freeCashflow: 1_200_000_000,
       debtToEquity: 0.48,
       trailingPE: 28.41,
+      financialCurrency: "USD",
     },
     epsHistory: [1.1, 1.3, -0.2, 1.5],
     ...overrides,
@@ -78,6 +80,33 @@ describe("StockDetailView financial cards", () => {
     const wrapper = await mountView();
 
     expect(statValue(wrapper, "Free Cash Flow")).toBe("$1.2B");
+  });
+
+  it("shows Free Cash Flow in the company's reporting currency, not its trading currency", async () => {
+    fetchStockDetail.mockResolvedValue(
+      makeStockDetail({ currency: "GBP", financials: { ...makeStockDetail().financials!, financialCurrency: "EUR" } })
+    );
+    const wrapper = await mountView();
+    expect(statValue(wrapper, "Free Cash Flow")).toBe("€1.2B");
+  });
+
+  it("shows prices with the trading currency's symbol", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ currency: "GBP" }));
+    const wrapper = await mountView();
+    expect(wrapper.find(".price").text()).toBe("£190.50");
+    expect(statValue(wrapper, "Close")).toBe("£190.50");
+    expect(statValue(wrapper, "50-day SMA")).toBe("£180.00");
+  });
+
+  it("falls back to the last bar's close in the header when the stock isn't a breakout candidate", async () => {
+    fetchStockDetail.mockResolvedValue(
+      makeStockDetail({
+        details: null,
+        bars: [{ date: "2024-01-02", open: 1, high: 1, low: 1, close: 42.5, volume: 1 }],
+      })
+    );
+    const wrapper = await mountView();
+    expect(wrapper.find(".price").text()).toBe("$42.50");
   });
 
   it("shows Debt / Equity as a fraction", async () => {
@@ -137,5 +166,75 @@ describe("StockDetailView EPS chart", () => {
     const wrapper = await mountView();
 
     expect(wrapper.findComponent(EpsChart).exists()).toBe(false);
+  });
+});
+
+describe("StockDetailView back button", () => {
+  const blank = { template: "<div />" };
+
+  /** A real browser-history router, starting from a clean history entry at `startAt`. */
+  async function makeWebRouter(startAt: string) {
+    window.history.replaceState(null, "", startAt);
+    const router = createRouter({
+      history: createWebHistory(),
+      routes: [
+        { path: "/", component: blank, meta: { title: "Home" } },
+        { path: "/login", component: blank },
+        { path: "/breakout", component: blank, meta: { title: "Breakout" } },
+        { path: "/sector-drilldown", component: blank, meta: { title: "Sector Drilldown" } },
+        { path: "/etfs", component: blank, meta: { title: "ETFs" } },
+        { path: "/stock/:symbol", component: blank },
+      ],
+    });
+    await router.push(startAt);
+    await router.isReady();
+    return router;
+  }
+
+  async function mountWith(webRouter: ReturnType<typeof createRouter>) {
+    const wrapper = shallowMount(StockDetailView, { global: { plugins: [webRouter] } });
+    await flushPromises();
+    return wrapper;
+  }
+
+  beforeEach(() => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail());
+  });
+
+  it("names the page you came from and returns to it with its filters", async () => {
+    const webRouter = await makeWebRouter("/sector-drilldown?sector=Technology&industry=Semiconductors");
+    await webRouter.push("/stock/AAPL");
+    const wrapper = await mountWith(webRouter);
+
+    expect(wrapper.find(".back-btn").text()).toBe("← Sector Drilldown");
+
+    await wrapper.find(".back-btn").trigger("click");
+    await vi.waitFor(() =>
+      expect(webRouter.currentRoute.value.fullPath).toBe("/sector-drilldown?sector=Technology&industry=Semiconductors")
+    );
+  });
+
+  it("works for any titled page, e.g. ETFs", async () => {
+    const webRouter = await makeWebRouter("/etfs");
+    await webRouter.push("/stock/SPY");
+    const wrapper = await mountWith(webRouter);
+    expect(wrapper.find(".back-btn").text()).toBe("← ETFs");
+  });
+
+  it("falls back to Home when opened directly", async () => {
+    const webRouter = await makeWebRouter("/stock/AAPL");
+    const wrapper = await mountWith(webRouter);
+
+    expect(wrapper.find(".back-btn").text()).toBe("← Home");
+    await wrapper.find(".back-btn").trigger("click");
+    await flushPromises();
+    expect(webRouter.currentRoute.value.fullPath).toBe("/");
+  });
+
+  it("falls back to Home when the previous page isn't a titled page", async () => {
+    const webRouter = await makeWebRouter("/login");
+    await webRouter.push("/stock/AAPL");
+    const wrapper = await mountWith(webRouter);
+    expect(wrapper.find(".back-btn").text()).toBe("← Home");
   });
 });

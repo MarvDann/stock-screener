@@ -6,32 +6,16 @@ import CandidateCard from "../components/CandidateCard.vue";
 import WarningsBanner from "../components/WarningsBanner.vue";
 import Pagination from "../components/Pagination.vue";
 import { usePagination } from "../composables/usePagination";
+import { useQueryPage, useQueryParam } from "../composables/useQueryParam";
+import { useStockCards } from "../composables/useStockCards";
+import { useCachedResource } from "../composables/useCachedResource";
+import { filterAndRank } from "../utils/search";
 
-const data = ref<BreakoutResponse | null>(null);
-const loading = ref(false);
-const error = ref<string | null>(null);
-const search = ref("");
+const { data, loading, error, load, updatedLabel } = useCachedResource<BreakoutResponse>("breakout", fetchBreakout);
+// Tab, filter and page live in the URL so the back button and reloads restore them.
+const search = useQueryParam("q");
 
 const query = computed(() => search.value.trim().toLowerCase());
-
-function rankMatch(c: { symbol: string; name: string }, q: string): number {
-  const sym = c.symbol.toLowerCase();
-  const name = c.name.toLowerCase();
-  if (sym === q) return 0;
-  if (sym.startsWith(q)) return 1;
-  if (name.startsWith(q)) return 2;
-  if (sym.includes(q) || name.includes(q)) return 3;
-  return -1;
-}
-
-function filterAndRank<T extends { symbol: string; name: string }>(items: T[], q: string): T[] {
-  if (!q) return items;
-  return items
-    .map((c) => ({ c, rank: rankMatch(c, q) }))
-    .filter((r) => r.rank >= 0)
-    .sort((a, b) => a.rank - b.rank)
-    .map((r) => r.c);
-}
 
 const triggered = computed(() =>
   filterAndRank(data.value?.triggered ?? [], query.value)
@@ -41,27 +25,44 @@ const approaching = computed(() =>
   filterAndRank(data.value?.approaching ?? [], query.value)
 );
 
-const triggeredPager = usePagination(triggered);
-const approachingPager = usePagination(approaching);
+const CARDS_PER_PAGE = 6;
+// One page number, for whichever tab is showing; switching tabs goes to page 1.
+const page = useQueryPage();
+const triggeredPager = usePagination(triggered, CARDS_PER_PAGE, page);
+const approachingPager = usePagination(approaching, CARDS_PER_PAGE, page);
 
-watch([data, search], () => {
-  triggeredPager.reset();
-  approachingPager.reset();
+type Tab = "triggered" | "approaching";
+const tabParam = useQueryParam("tab");
+/** The tab in the URL, else whichever has results (Triggered when both do). */
+const activeTab = computed<Tab>({
+  get: () => {
+    if (tabParam.value === "triggered" || tabParam.value === "approaching") return tabParam.value;
+    return data.value && data.value.triggered.length === 0 ? "approaching" : "triggered";
+  },
+  set: (tab) => {
+    tabParam.value = tab;
+    page.value = 1;
+  },
 });
+const activePager = computed(() => (activeTab.value === "triggered" ? triggeredPager : approachingPager));
+const activePaged = computed(() => activePager.value.paged.value);
 
-async function load() {
-  loading.value = true;
-  error.value = null;
-  try {
-    data.value = await fetchBreakout();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Scan failed";
-  } finally {
-    loading.value = false;
-  }
+const {
+  pageCards,
+  loading: cardsLoading,
+  error: cardsError,
+  load: loadPageCards,
+} = useStockCards(activePaged);
+
+watch(search, () => (page.value = 1));
+
+/** Refresh rescans and refetches the visible charts too. */
+function refresh() {
+  void loadPageCards({ force: true });
+  void load({ force: true });
 }
 
-onMounted(load);
+onMounted(() => load());
 </script>
 
 <template>
@@ -69,13 +70,14 @@ onMounted(load);
     <div class="page-header">
       <h2>Breakout</h2>
       <div class="header-actions">
+        <span v-if="updatedLabel" class="updated">{{ loading ? "Refreshing…" : updatedLabel }}</span>
         <input
           v-model="search"
           type="text"
           placeholder="Filter by symbol or name…"
           class="search"
         />
-        <button class="btn-primary" :disabled="loading" @click="load">
+        <button class="btn-primary" :disabled="loading" @click="refresh">
           {{ loading ? "Refreshing…" : "Refresh" }}
         </button>
       </div>
@@ -84,48 +86,66 @@ onMounted(load);
     <div v-if="error" class="error-state">
       <p>Scan failed — try again.</p>
       <p class="detail">{{ error }}</p>
-      <button @click="load">Retry</button>
+      <button @click="refresh">Retry</button>
     </div>
 
-    <template v-else-if="data">
+    <p v-if="!data && loading" class="muted">Scanning…</p>
+
+    <template v-if="data">
       <WarningsBanner :warnings="data.warnings" />
 
-      <section>
-        <h3>Triggered ({{ triggered.length }})</h3>
-        <p v-if="triggered.length === 0" class="empty">{{ query ? 'No matches.' : 'No triggered breakouts right now.' }}</p>
-        <template v-else>
-          <Pagination
-            :page="triggeredPager.page.value"
-            :total-pages="triggeredPager.totalPages.value"
-            @update:page="triggeredPager.goTo"
-          />
-          <div class="grid">
-            <CandidateCard v-for="c in triggeredPager.paged.value" :key="c.symbol" :candidate="c" />
-          </div>
-          <Pagination
-            :page="triggeredPager.page.value"
-            :total-pages="triggeredPager.totalPages.value"
-            @update:page="triggeredPager.goTo"
-          />
-        </template>
-      </section>
+      <div class="tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="tab"
+          :class="{ active: activeTab === 'triggered' }"
+          :aria-selected="activeTab === 'triggered'"
+          @click="activeTab = 'triggered'"
+        >
+          Triggered <span class="count">{{ triggered.length }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="tab"
+          :class="{ active: activeTab === 'approaching' }"
+          :aria-selected="activeTab === 'approaching'"
+          @click="activeTab = 'approaching'"
+        >
+          Approaching <span class="count">{{ approaching.length }}</span>
+        </button>
+      </div>
 
       <section>
-        <h3>Approaching ({{ approaching.length }})</h3>
-        <p v-if="approaching.length === 0" class="empty">{{ query ? 'No matches.' : 'No candidates approaching a breakout right now.' }}</p>
+        <p v-if="activePager.paged.value.length === 0" class="empty">
+          {{
+            query
+              ? "No matches."
+              : activeTab === "triggered"
+                ? "No triggered breakouts right now."
+                : "No candidates approaching a breakout right now."
+          }}
+        </p>
         <template v-else>
           <Pagination
-            :page="approachingPager.page.value"
-            :total-pages="approachingPager.totalPages.value"
-            @update:page="approachingPager.goTo"
+            :page="activePager.page.value"
+            :total-pages="activePager.totalPages.value"
+            @update:page="activePager.goTo"
           />
-          <div class="grid">
-            <CandidateCard v-for="c in approachingPager.paged.value" :key="c.symbol" :candidate="c" />
+          <div v-if="cardsError" class="error-state">
+            <p>Couldn't load charts for this page.</p>
+            <p class="detail">{{ cardsError }}</p>
+            <button @click="loadPageCards()">Retry</button>
+          </div>
+          <p v-if="cardsLoading && pageCards.length === 0" class="empty">Loading charts…</p>
+          <div v-if="pageCards.length > 0" class="card-grid">
+            <CandidateCard v-for="c in pageCards" :key="c.symbol" :candidate="c" />
           </div>
           <Pagination
-            :page="approachingPager.page.value"
-            :total-pages="approachingPager.totalPages.value"
-            @update:page="approachingPager.goTo"
+            :page="activePager.page.value"
+            :total-pages="activePager.totalPages.value"
+            @update:page="activePager.goTo"
           />
         </template>
       </section>
@@ -157,16 +177,57 @@ onMounted(load);
 .search:focus {
   border-color: var(--accent);
 }
-h3 {
-  color: var(--text-primary);
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 14px;
   font-weight: 600;
+  padding: 8px 4px 10px;
+  margin-bottom: -1px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s, border-color 0.15s;
 }
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-bottom: 28px;
+.tab + .tab {
+  margin-left: 16px;
 }
+.tab:hover {
+  color: var(--text-primary);
+}
+.tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+.tab .count {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.tab.active .count {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.updated {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.muted,
 .empty {
   color: var(--text-secondary);
   font-size: 13px;

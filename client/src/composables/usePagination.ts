@@ -1,9 +1,14 @@
-import { ref, computed, Ref } from "vue";
+import { ref, computed, type Ref } from "vue";
 
-export function usePagination<T>(items: Ref<T[]>, perPage = 12) {
-  const page = ref(1);
-
+/**
+ * Pages over `items`. Pass `pageRef` to keep the page somewhere else, e.g.
+ * in the URL; the page shown is clamped to the pages that exist, so a stale
+ * page number (from a link, or after the list shrinks) lands on the last page.
+ */
+export function usePagination<T>(items: Ref<T[]>, perPage = 12, pageRef: Ref<number> = ref(1)) {
   const totalPages = computed(() => Math.max(1, Math.ceil(items.value.length / perPage)));
+
+  const page = computed(() => Math.min(Math.max(1, pageRef.value), totalPages.value));
 
   const paged = computed(() => {
     const start = (page.value - 1) * perPage;
@@ -11,11 +16,11 @@ export function usePagination<T>(items: Ref<T[]>, perPage = 12) {
   });
 
   function goTo(p: number) {
-    page.value = Math.max(1, Math.min(p, totalPages.value));
+    pageRef.value = Math.max(1, Math.min(p, totalPages.value));
   }
 
   function reset() {
-    page.value = 1;
+    pageRef.value = 1;
   }
 
   return { page, totalPages, paged, goTo, reset };

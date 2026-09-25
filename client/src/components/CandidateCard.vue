@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
-import type { BreakoutCandidate } from "../types";
+import { computed } from "vue";
+import type { StockCard } from "../types";
+import { formatPrice } from "../utils/format";
 import PriceChart from "./PriceChart.vue";
 
 const router = useRouter();
-const props = defineProps<{ candidate: BreakoutCandidate }>();
+const props = withDefaults(defineProps<{ candidate: StockCard; showState?: boolean }>(), { showState: false });
+
+const close = computed(() => props.candidate.details?.close ?? props.candidate.bars.at(-1)?.close ?? null);
 
 let downX = 0;
 let downY = 0;
@@ -21,7 +25,13 @@ function openDetail(e: PointerEvent) {
   router.push(`/stock/${props.candidate.symbol}`);
 }
 
-function summary(c: BreakoutCandidate): string {
+function summary(c: StockCard): string {
+  if (!c.details) {
+    const sma50 = c.sma50Series.at(-1);
+    if (close.value == null || sma50 == null || Number.isNaN(sma50)) return "Not enough history for a 50-day SMA";
+    const pct = ((close.value - sma50) / sma50) * 100;
+    return `${Math.abs(pct).toFixed(1)}% ${pct >= 0 ? "above" : "below"} 50-day SMA`;
+  }
   if (c.state === "triggered") {
     const days = c.details.daysSinceCross;
     const dayLabel = days === 0 ? "today" : `${days} day(s) ago`;
@@ -37,8 +47,11 @@ function summary(c: BreakoutCandidate): string {
       <div>
         <h3>{{ props.candidate.name || props.candidate.symbol }}</h3>
         <span class="ticker">{{ props.candidate.symbol }}</span>
+        <span v-if="props.showState && props.candidate.state" class="state" :class="props.candidate.state">
+          {{ props.candidate.state === "triggered" ? "Triggered" : "Approaching" }}
+        </span>
       </div>
-      <span class="close">{{ props.candidate.details.close.toFixed(2) }}</span>
+      <span v-if="close != null" class="close">{{ formatPrice(close, props.candidate.currency) }}</span>
     </div>
     <PriceChart :bars="props.candidate.bars" :sma50-series="props.candidate.sma50Series" :sma150-series="props.candidate.sma150Series" />
     <p class="summary">{{ summary(props.candidate) }}</p>
@@ -80,6 +93,21 @@ function summary(c: BreakoutCandidate): string {
   font-family: var(--font-mono);
   color: var(--text-muted);
   letter-spacing: 0.04em;
+}
+.state {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+.state.triggered {
+  color: var(--positive);
+}
+.state.approaching {
+  color: var(--accent);
 }
 .close {
   font-variant-numeric: tabular-nums;
