@@ -3,7 +3,10 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../auth";
 import { backfillProfiles, createTickersRouter, listSymbols, listTickers, getTickerName } from "../tickers";
-import { SAMPLE_UNIVERSE } from "../universe";
+import db from "../db";
+import SEED_TICKERS from "../seed/tickers.json";
+
+const seeded = (symbol: string) => SEED_TICKERS.find((t) => t.symbol === symbol)!;
 
 const lookupTicker = vi.fn(async (symbol: string) =>
   symbol === "NOPE" ? null : { name: `${symbol} Inc`, profile: { sector: "Technology", industry: "Software", currency: "USD" } }
@@ -41,9 +44,10 @@ afterAll(() => {
 });
 
 describe("tickers", () => {
-  it("seeds the table from the S&P 500 list on first run", () => {
-    expect(listSymbols().sort()).toEqual([...SAMPLE_UNIVERSE].sort());
-    expect(getTickerName("AAPL")).toBe("Apple");
+  it("seeds the table from the seed file on first run, profiles included", () => {
+    expect(listSymbols()).toEqual(SEED_TICKERS.map((t) => t.symbol).sort());
+    expect(listTickers()).toEqual(SEED_TICKERS);
+    expect(getTickerName("AAPL")).toBe(seeded("AAPL").name);
   });
 
   it("requires auth", async () => {
@@ -55,14 +59,14 @@ describe("tickers", () => {
     const res = await request("GET", "/api/tickers");
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.tickers[0]).toEqual({ symbol: "A", name: "Agilent", sector: null, industry: null, currency: null });
+    expect(body.tickers[0]).toEqual(SEED_TICKERS[0]);
   });
 
   it("adds a ticker, uppercasing it and filling the name from the lookup", async () => {
-    const res = await request("POST", "/api/tickers", { symbol: " brk-b " });
+    const res = await request("POST", "/api/tickers", { symbol: " abcd-b " });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ symbol: "BRK-B", name: "BRK-B Inc", sector: "Technology", industry: "Software", currency: "USD" });
-    expect(listSymbols()).toContain("BRK-B");
+    expect(await res.json()).toEqual({ symbol: "ABCD-B", name: "ABCD-B Inc", sector: "Technology", industry: "Software", currency: "USD" });
+    expect(listSymbols()).toContain("ABCD-B");
     expect(onChange).toHaveBeenCalled();
   });
 
@@ -104,7 +108,7 @@ describe("tickers", () => {
   it("renames a ticker", async () => {
     const res = await request("PATCH", "/api/tickers/aapl", { name: "Apple Inc." });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ symbol: "AAPL", name: "Apple Inc.", sector: null, industry: null, currency: null });
+    expect(await res.json()).toEqual({ ...seeded("AAPL"), name: "Apple Inc." });
     expect(getTickerName("AAPL")).toBe("Apple Inc.");
   });
 
@@ -114,11 +118,11 @@ describe("tickers", () => {
   });
 
   it("deletes a ticker", async () => {
-    const res = await request("DELETE", "/api/tickers/BRK-B");
+    const res = await request("DELETE", "/api/tickers/ABCD-B");
     expect(res.status).toBe(204);
-    expect(listSymbols()).not.toContain("BRK-B");
+    expect(listSymbols()).not.toContain("ABCD-B");
 
-    const again = await request("DELETE", "/api/tickers/BRK-B");
+    const again = await request("DELETE", "/api/tickers/ABCD-B");
     expect(again.status).toBe(404);
   });
 
@@ -128,7 +132,10 @@ describe("tickers", () => {
       return { sector: symbol === "SPY" ? "" : "Sector", industry: symbol === "SPY" ? "" : "Industry", currency: "USD" };
     });
 
+    // Seeded tickers come with profiles, so blank a couple to give the backfill work.
+    db.prepare("UPDATE tickers SET sector = NULL, industry = NULL WHERE symbol IN ('AAPL', 'MSFT')").run();
     const pending = listTickers().filter((t) => t.sector === null || t.currency === null).map((t) => t.symbol);
+    expect(pending).toEqual(["AAPL", "MSFT", "MYST"]);
     const first = await backfillProfiles(lookup, { batchSize: 50, delayMs: 0 });
     expect(lookup.mock.calls.map(([s]) => s)).toEqual(pending);
     expect(pending).toContain("MYST"); // added while its sector lookup failed

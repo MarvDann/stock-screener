@@ -8,6 +8,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "db:backup": "tsx src/scripts/backupDb.ts",
+    "db:export-seed": "tsx src/scripts/exportSeed.ts",
     "start": "node --env-file=.env dist/server.js",
     "dev:server": "tsx watch --env-file=.env src/server.ts",
     "dev:client": "pnpm --dir client dev",

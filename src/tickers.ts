@@ -1,9 +1,8 @@
 import { Router, Request, Response } from "express";
 import db from "./db";
 import { requireAuth } from "./middleware/requireAuth";
-import { SAMPLE_UNIVERSE } from "./universe";
-import { STOCK_NAMES } from "./stockNames";
 import type { TickerProfile } from "./types";
+import SEED_TICKERS from "./seed/tickers.json";
 
 export interface Ticker {
   symbol: string;
@@ -48,11 +47,13 @@ if (!columns.includes("currency")) db.exec("ALTER TABLE tickers ADD COLUMN curre
 const TICKER_COLUMNS = "symbol, name, sector, industry, currency";
 
 // Seed only when the table is first created, so deleting every ticker
-// doesn't bring the S&P 500 list back on the next restart.
+// doesn't bring the list back on the next restart. The seed file is a
+// snapshot of a real ticker list, profiles included — refresh it with
+// `pnpm run db:export-seed`.
 if (!tableExists) {
-  const insert = db.prepare("INSERT OR IGNORE INTO tickers (symbol, name) VALUES (?, ?)");
+  const insert = db.prepare(`INSERT OR IGNORE INTO tickers (${TICKER_COLUMNS}) VALUES (?, ?, ?, ?, ?)`);
   db.transaction(() => {
-    for (const symbol of SAMPLE_UNIVERSE) insert.run(symbol, STOCK_NAMES[symbol] ?? "");
+    for (const t of SEED_TICKERS as Ticker[]) insert.run(t.symbol, t.name, t.sector, t.industry, t.currency);
   })();
 }
 

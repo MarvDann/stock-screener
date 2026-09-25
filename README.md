@@ -49,6 +49,21 @@ The app uses email/password authentication with JWT tokens. Register an
 account on first use. Sessions last 7 days. User data is stored in a
 local SQLite database (`data/screener.db`, gitignored).
 
+## Database
+
+Users and the tracked ticker list live in `data/screener.db` (gitignored).
+
+- **Seeding:** a fresh database is seeded from `src/seed/tickers.json` —
+  every ticker with its name, sector, sub-sector and currency. Seeding only
+  happens when the table is first created; an existing database is never
+  touched.
+- **Updating the seed:** after changing the ticker list in the app, run
+  `pnpm run db:export-seed` and commit `src/seed/tickers.json` so new setups
+  start from the same list. User accounts are never exported.
+- **Backups:** `pnpm run db:backup` writes a consistent snapshot (tickers
+  and users) to `data/backups/`, safe while the server is running. To
+  restore, stop the server and copy a backup over `data/screener.db`.
+
 ## Tests
 
 ```bash
