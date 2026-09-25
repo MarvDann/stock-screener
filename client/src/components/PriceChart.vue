@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ColorType, createChart, type IChartApi, type ISeriesApi } from "lightweight-charts";
+import { ColorType, createChart, LineStyle, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
 import { useTheme } from "../composables/useTheme";
 
@@ -46,7 +46,7 @@ function render() {
       vertLines: { color: chartColors[theme.value].grid },
       horzLines: { color: chartColors[theme.value].grid },
     },
-    timeScale: { borderVisible: false },
+    timeScale: { borderVisible: false, rightOffset: 1 },
     rightPriceScale: { borderVisible: false },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
     handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
@@ -58,7 +58,8 @@ function render() {
     borderVisible: false,
     wickUpColor: UP_COLOR,
     wickDownColor: DOWN_COLOR,
-    priceLineVisible: false,
+    priceLineWidth: 1,
+    priceLineStyle: LineStyle.Dashed,
   });
   candleSeries.setData(
     props.bars.map((b) => ({

@@ -77,3 +77,25 @@ describe("usePagination", () => {
     expect(paged.value).toEqual(items.value.slice(0, 10));
   });
 });
+
+describe("usePagination with an external page ref", () => {
+  it("reads and writes the page through the ref", () => {
+    const items = ref(Array.from({ length: 25 }, (_, i) => i));
+    const pageRef = ref(2);
+    const { page, paged, goTo } = usePagination(items, 10, pageRef);
+    expect(page.value).toBe(2);
+    expect(paged.value[0]).toBe(10);
+    goTo(3);
+    expect(pageRef.value).toBe(3);
+  });
+
+  it("clamps an out-of-range page to the last page that exists", () => {
+    const items = ref(Array.from({ length: 25 }, (_, i) => i));
+    const { page, paged } = usePagination(items, 10, ref(9));
+    expect(page.value).toBe(3);
+    expect(paged.value).toEqual([20, 21, 22, 23, 24]);
+
+    items.value = items.value.slice(0, 5);
+    expect(page.value).toBe(1);
+  });
+});

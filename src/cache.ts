@@ -21,3 +21,7 @@ export function getCached(key: string, ttlMs = DEFAULT_TTL_MS): SymbolHistory[] 
 export function setCache(key: string, data: SymbolHistory[]): void {
   cache.set(key, { data, timestamp: Date.now() });
 }
+
+export function clearCache(key: string): void {
+  cache.delete(key);
+}

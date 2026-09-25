@@ -28,31 +28,40 @@ describe("runBreakoutScreen", () => {
     expect(runBreakoutScreen(history)).toBeNull();
   });
 
-  it("detects approaching state when below SMA and consolidating", () => {
-    // First 50 bars at a high price establish an older trend high (outside the 50-day SMA window).
-    const highBars = Array.from({ length: 50 }, (_, i) =>
-      makeBar({ date: new Date(2024, 0, i + 1), close: 130, open: 128, high: 135, low: 125 })
+  it("detects approaching state when below a leveled-out SMA and consolidating", () => {
+    // 60 wide-ranged bars at a steady price keep the 50-day SMA flat — the "prior period" for the contraction check.
+    const flatBars = Array.from({ length: 60 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
     );
-    // Next 35 bars drop to a lower, wider-ranged price — the "prior period" for the contraction check.
-    const midBars = Array.from({ length: 35 }, (_, i) =>
-      makeBar({ date: new Date(2024, 3, i + 1), close: 120, open: 119, high: 128, low: 112 })
+    // Last 15 bars tighten up close to (but below) the flat 50-day SMA.
+    const tightBars = Array.from({ length: 15 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 117.8, high: 118.5, low: 117.5 })
     );
-    // Last 15 bars tighten up close to (but below) the resulting 50-day SMA.
-    const lowBars = Array.from({ length: 15 }, (_, i) =>
-      makeBar({
-        date: new Date(2024, 6, i + 1),
-        close: 118,
-        open: 117.8,
-        high: 118.5,
-        low: 117.5,
-      })
-    );
-    const history: SymbolHistory = { symbol: "TEST", bars: [...highBars, ...midBars, ...lowBars] };
+    const history: SymbolHistory = { symbol: "TEST", bars: [...flatBars, ...tightBars] };
     const result = runBreakoutScreen(history);
 
     expect(result).not.toBeNull();
     expect(result?.state).toBe("approaching");
     expect(result?.details.daysSinceCross).toBeNull();
+  });
+
+  it("skips approaching when the 50-day SMA is still declining", () => {
+    // An older trend high rolling out of the window drags the 50-day SMA down ~2% over 10 days.
+    const highBars = Array.from({ length: 50 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 130, open: 128, high: 135, low: 125 })
+    );
+    const midBars = Array.from({ length: 35 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 120, open: 119, high: 128, low: 112 })
+    );
+    const lowBars = Array.from({ length: 15 }, (_, i) =>
+      makeBar({ date: new Date(2024, 6, i + 1), close: 118, open: 117.8, high: 118.5, low: 117.5 })
+    );
+    const history: SymbolHistory = { symbol: "TEST", bars: [...highBars, ...midBars, ...lowBars] };
+
+    expect(runBreakoutScreen(history)).toBeNull();
+    expect(runBreakoutScreen(history, { ...DEFAULT_BREAKOUT_CONFIG, minSma50SlopePct: -5 })?.state).toBe(
+      "approaching"
+    );
   });
 });
 

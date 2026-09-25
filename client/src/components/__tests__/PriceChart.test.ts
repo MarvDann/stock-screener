@@ -20,6 +20,7 @@ const createChart = vi.fn((..._args: unknown[]) => chart);
 
 vi.mock("lightweight-charts", () => ({
   ColorType: { Solid: "solid" },
+  LineStyle: { Dashed: 2 },
   createChart: (...args: unknown[]) => createChart(...args),
 }));
 

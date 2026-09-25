@@ -1,7 +1,8 @@
 /**
- * S&P 500 constituents (as of mid-2026). Some symbols use dots in their
- * canonical form but are listed with hyphens here to match most data
- * providers' conventions.
+ * S&P 500 constituents (as of mid-2026), used only to seed the `tickers`
+ * table on first run — edit the list from the Tickers page after that.
+ * Some symbols use dots in their canonical form but are listed with
+ * hyphens here to match most data providers' conventions.
  */
 export const SAMPLE_UNIVERSE: string[] = [
   // Information Technology

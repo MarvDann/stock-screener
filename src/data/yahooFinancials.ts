@@ -1,5 +1,5 @@
 import YahooFinance from "yahoo-finance2";
-import { StockFinancials } from "../types";
+import { StockFinancials, TickerProfile } from "../types";
 
 const yahooFinance = new YahooFinance();
 
@@ -36,6 +36,7 @@ export async function getStockFundamentals(symbol: string): Promise<StockFundame
           // Yahoo reports this as a percent (e.g. 48.2 for a 0.48 ratio).
           debtToEquity: fd.debtToEquity / 100,
           trailingPE: sd.trailingPE,
+          financialCurrency: fd.financialCurrency ?? null,
         }
       : null;
 
@@ -48,4 +49,24 @@ export async function getStockFundamentals(symbol: string): Promise<StockFundame
     .map((entry) => entry.epsActual);
 
   return { financials, epsHistory };
+}
+
+/** Company display name from Yahoo's quote endpoint, or "" if it has none. */
+export async function getQuoteName(symbol: string): Promise<string> {
+  const quote = await yahooFinance.quote(symbol);
+  return quote?.shortName ?? quote?.longName ?? "";
+}
+
+/**
+ * Sector and industry from Yahoo's assetProfile module ("" when Yahoo has
+ * none, e.g. for ETFs), plus the trading currency from its price module,
+ * as Yahoo quotes it: "GBp" means pence.
+ */
+export async function getTickerProfile(symbol: string): Promise<TickerProfile> {
+  const result = await yahooFinance.quoteSummary(symbol, { modules: ["assetProfile", "price"] });
+  return {
+    sector: result.assetProfile?.sector ?? "",
+    industry: result.assetProfile?.industry ?? "",
+    currency: result.price?.currency ?? null,
+  };
 }
