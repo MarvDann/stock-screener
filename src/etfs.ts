@@ -34,6 +34,7 @@ const CURATED: Record<Exclude<EtfCategory, "US Sectors">, EtfEntry[]> = {
   Global: [
     ["VWRP.L", "Vanguard FTSE All-World (Acc)", "GBP"],
     ["SWDA.L", "iShares Core MSCI World", "GBp"],
+    ["VALL.L", "Vanguard FTSE Global All Cap (Acc)", "GBP"],
     ["VT", "Vanguard Total World Stock"],
     ["ACWI", "iShares MSCI ACWI"],
   ],
@@ -49,6 +50,7 @@ const CURATED: Record<Exclude<EtfCategory, "US Sectors">, EtfEntry[]> = {
     ["QQQ", "Invesco QQQ (Nasdaq-100)"],
     ["VUG", "Vanguard Growth"],
     ["SMH", "VanEck Semiconductor"],
+    ["SMGB.L", "VanEck Semiconductor (UK)", "GBP"],
     ["SOXX", "iShares Semiconductor"],
     ["IGV", "iShares Expanded Tech-Software"],
   ],

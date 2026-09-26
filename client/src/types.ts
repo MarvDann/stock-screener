@@ -128,6 +128,13 @@ export interface Ticker {
   industry: string | null;
 }
 
+export interface Watchlist {
+  id: number;
+  name: string;
+  /** In the order they were added. */
+  symbols: string[];
+}
+
 export interface Etf {
   symbol: string;
   name: string;

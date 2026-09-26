@@ -7,6 +7,7 @@ import type {
   StockDetail,
   StocksResponse,
   Ticker,
+  Watchlist,
 } from "./types";
 import router from "./router";
 
@@ -122,6 +123,32 @@ export function updateTicker(symbol: string, name: string): Promise<Ticker> {
 
 export function deleteTicker(symbol: string): Promise<void> {
   return fetchJson<void>(`/api/tickers/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+}
+
+export async function fetchWatchlists(): Promise<Watchlist[]> {
+  const { watchlists } = await fetchJson<{ watchlists: Watchlist[] }>("/api/watchlists");
+  return watchlists;
+}
+
+export function createWatchlist(name: string): Promise<Watchlist> {
+  return fetchJson<Watchlist>("/api/watchlists", { method: "POST", body: { name } });
+}
+
+export function renameWatchlist(id: number, name: string): Promise<Watchlist> {
+  return fetchJson<Watchlist>(`/api/watchlists/${id}`, { method: "PATCH", body: { name } });
+}
+
+export function deleteWatchlist(id: number): Promise<void> {
+  return fetchJson<void>(`/api/watchlists/${id}`, { method: "DELETE" });
+}
+
+/** Adds on the end, or at `index` in the list (used to undo a removal). */
+export function addToWatchlist(id: number, symbol: string, index?: number): Promise<Watchlist> {
+  return fetchJson<Watchlist>(`/api/watchlists/${id}/symbols`, { method: "POST", body: { symbol, index } });
+}
+
+export function removeFromWatchlist(id: number, symbol: string): Promise<Watchlist> {
+  return fetchJson<Watchlist>(`/api/watchlists/${id}/symbols/${encodeURIComponent(symbol)}`, { method: "DELETE" });
 }
 
 /** Emails a reset link if the account exists; the reply is the same either way. */

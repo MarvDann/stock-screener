@@ -51,7 +51,13 @@ function summary(c: StockCard): string {
           {{ props.candidate.state === "triggered" ? "Triggered" : "Approaching" }}
         </span>
       </div>
-      <span v-if="close != null" class="close">{{ formatPrice(close, props.candidate.currency) }}</span>
+      <div class="header-end">
+        <span v-if="close != null" class="close">{{ formatPrice(close, props.candidate.currency) }}</span>
+        <!-- Page-specific buttons, e.g. remove from a watchlist. Clicks here don't open the stock. -->
+        <div v-if="$slots.actions" class="actions" @click.stop @pointerdown.stop>
+          <slot name="actions" />
+        </div>
+      </div>
     </div>
     <PriceChart :bars="props.candidate.bars" :sma50-series="props.candidate.sma50Series" :sma150-series="props.candidate.sma150Series" />
     <p class="summary">{{ summary(props.candidate) }}</p>
@@ -108,6 +114,15 @@ function summary(c: StockCard): string {
 }
 .state.approaching {
   color: var(--accent);
+}
+.header-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.actions {
+  display: flex;
+  align-items: center;
 }
 .close {
   font-variant-numeric: tabular-nums;

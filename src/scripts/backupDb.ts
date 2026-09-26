@@ -1,5 +1,5 @@
 /**
- * Writes a consistent snapshot of the SQLite database (tickers and users) to
+ * Writes a consistent snapshot of the SQLite database (tickers, users and watchlists) to
  * data/backups/screener-<timestamp>.db. Uses SQLite's online backup, so it's
  * safe while the server is running (a plain file copy can miss WAL writes).
  *

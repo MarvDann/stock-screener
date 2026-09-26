@@ -5,6 +5,7 @@ import { fetchStockDetail } from "../api";
 import type { StockDetail } from "../types";
 import PriceChart from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
+import WatchlistMenu from "../components/WatchlistMenu.vue";
 import { formatAbbreviatedCurrency, formatPercent, formatPrice, formatRatio, formatTimeAgo } from "../utils/format";
 
 const route = useRoute();
@@ -94,6 +95,7 @@ onMounted(load);
         <span class="ticker-badge">{{ symbol }}</span>
       </div>
       <span v-if="data && lastClose != null" class="price">{{ formatPrice(lastClose, data.currency) }}</span>
+      <WatchlistMenu :symbol="symbol" />
     </div>
 
     <div v-if="loading" class="loading">Loading...</div>

@@ -33,6 +33,7 @@ function logout() {
       <RouterLink to="/" class="nav-link">Home</RouterLink>
       <RouterLink to="/stock-charts" class="nav-link">Stock Charts</RouterLink>
       <RouterLink to="/etfs" class="nav-link">ETFs</RouterLink>
+      <RouterLink to="/watchlists" class="nav-link">Watchlists</RouterLink>
       <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
       <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
       <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>

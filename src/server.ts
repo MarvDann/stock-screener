@@ -35,6 +35,7 @@ import {
 } from "./tickers";
 import { displayCurrency, toMajorUnits } from "./currency";
 import { ETF_CATEGORIES, getEtf, listEtfs } from "./etfs";
+import { createWatchlistsRouter } from "./watchlists";
 import { computeGroupStats, computeMarketOverview } from "./screens/marketOverview";
 
 const app = express();
@@ -73,6 +74,7 @@ app.use(
     onChange: () => clearCache("breakout"),
   })
 );
+app.use(createWatchlistsRouter({ isKnownSymbol: (symbol) => symbol in chartableSecurities().names }));
 
 let scanInFlight: Promise<SymbolHistory[]> | null = null;
 

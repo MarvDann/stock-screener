@@ -11,6 +11,7 @@ import TickersView from "../views/TickersView.vue";
 import StockChartsView from "../views/StockChartsView.vue";
 import SectorDrilldownView from "../views/SectorDrilldownView.vue";
 import EtfsView from "../views/EtfsView.vue";
+import WatchlistsView from "../views/WatchlistsView.vue";
 import { isAuthenticated } from "../api";
 
 // `title` names a page for the stock detail page's back button.
@@ -26,6 +27,7 @@ const router = createRouter({
     { path: "/breakout", name: "breakout", component: BreakoutView, meta: { title: "Breakout" } },
     { path: "/stock-charts", name: "stock-charts", component: StockChartsView, meta: { title: "Stock Charts" } },
     { path: "/etfs", name: "etfs", component: EtfsView, meta: { title: "ETFs" } },
+    { path: "/watchlists", name: "watchlists", component: WatchlistsView, meta: { title: "Watchlists" } },
     { path: "/stock/:symbol", name: "stock-detail", component: StockDetailView },
     { path: "/sector-rotation", name: "sector-rotation", component: SectorRotationView, meta: { title: "Sector Rotation" } },
     { path: "/sector-drilldown", name: "sector-drilldown", component: SectorDrilldownView, meta: { title: "Sector Drilldown" } },

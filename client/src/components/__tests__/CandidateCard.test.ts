@@ -135,4 +135,16 @@ describe("CandidateCard", () => {
     await router.isReady();
     expect(router.currentRoute.value.fullPath).toBe("/");
   });
+
+  it("renders page actions in the header without clicks on them opening the stock", async () => {
+    await router.push("/");
+    const wrapper = shallowMount(CandidateCard, {
+      props: { candidate: makeCandidate() },
+      slots: { actions: '<button class="remove">×</button>' },
+      global: { plugins: [router] },
+    });
+    await wrapper.find(".remove").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.fullPath).toBe("/");
+  });
 });

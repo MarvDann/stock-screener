@@ -14,6 +14,12 @@ A local web app with two screens, run on-demand against live end-of-day data:
 
 The stock universe covers ~366 S&P 500 constituents.
 
+**Watchlists** let each user group stocks and ETFs into named lists and
+chart them together. Create and manage them on the Watchlists page, or use
+the Watchlists menu on any stock's page to add or remove it. Each account's
+watchlists are private to it. A watchlist can hold any tracked ticker or
+curated ETF.
+
 ## Setup
 
 ```bash
@@ -70,7 +76,8 @@ local SQLite database (`data/screener.db`, gitignored).
 
 ## Database
 
-Users and the tracked ticker list live in `data/screener.db` (gitignored).
+Users, their watchlists and the tracked ticker list live in
+`data/screener.db` (gitignored).
 
 - **Seeding:** a fresh database is seeded from `src/seed/tickers.json` —
   every ticker with its name, sector, sub-sector and currency. Seeding only
@@ -78,9 +85,9 @@ Users and the tracked ticker list live in `data/screener.db` (gitignored).
   touched.
 - **Updating the seed:** after changing the ticker list in the app, run
   `pnpm run db:export-seed` and commit `src/seed/tickers.json` so new setups
-  start from the same list. User accounts are never exported.
-- **Backups:** `pnpm run db:backup` writes a consistent snapshot (tickers
-  and users) to `data/backups/`, safe while the server is running. To
+  start from the same list. User accounts and watchlists are never exported.
+- **Backups:** `pnpm run db:backup` writes a consistent snapshot (tickers,
+  users and watchlists) to `data/backups/`, safe while the server is running. To
   restore, stop the server and copy a backup over `data/screener.db`.
 
 ## Tests
@@ -89,4 +96,4 @@ Users and the tracked ticker list live in `data/screener.db` (gitignored).
 pnpm test
 ```
 
-Runs the Vitest suite covering indicators, screens, and auth.
+Runs the Vitest suite covering indicators, screens, auth, and watchlists.
