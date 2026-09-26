@@ -6,10 +6,14 @@ import { isVolatilityContracting, rangeContractionPct, volumeRatio } from "../in
 const TRIGGER_SMA_PERIOD = 50;
 
 export interface BreakoutScreenConfig {
-  /** Bars in the "tight" consolidation window used by the heartbeat check. Default 15 trading days. */
+  /** Bars in the "tight" consolidation window used by the heartbeat check. Default 30 trading days. */
   consolidationPeriod: number;
   /** Prior window compared against to confirm contraction. Default 40 trading days. */
   priorPeriod: number;
+  /** Max ratio of the consolidation range to the prior window's range. Default 0.6 (at least 40% tighter). */
+  maxContractionRatio: number;
+  /** Max width of the consolidation range, as a percent of its low. Default 10. */
+  maxRangePct: number;
   /** Max distance below the 50-day SMA, as a percent, to count as "approaching". Default 5. */
   approachingThresholdPct: number;
   /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 2x. */
@@ -28,8 +32,10 @@ export interface BreakoutScreenConfig {
 }
 
 export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
-  consolidationPeriod: 15,
+  consolidationPeriod: 30,
   priorPeriod: 40,
+  maxContractionRatio: 0.6,
+  maxRangePct: 10,
   approachingThresholdPct: 5,
   minTriggerVolumeRatio: 2,
   volumeAvgPeriod: 20,
@@ -64,6 +70,21 @@ function findCrossDayIndex(
 }
 
 /**
+ * True when the consolidation window ending at `endIndex` is both narrower
+ * than the prior window and narrow in absolute terms.
+ */
+function isTightConsolidation(
+  bars: SymbolHistory["bars"],
+  config: BreakoutScreenConfig,
+  endIndex: number
+): boolean {
+  return (
+    rangeContractionPct(bars, config.consolidationPeriod, endIndex) <= config.maxRangePct &&
+    isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex, config.maxContractionRatio)
+  );
+}
+
+/**
  * Runs the breakout screen against one symbol's history using the
  * 50-day SMA cross definition. Requires at least 50 bars to compute the
  * SMA at all; returns null below that (naturally means "no state" once
@@ -85,12 +106,7 @@ export function runBreakoutScreen(
   const crossDayIndex = findCrossDayIndex(bars, endIndex, config.crossLookbackDays);
   if (crossDayIndex !== null) {
     const heartbeatAnchor = crossDayIndex - 1;
-    const isConsolidating = isVolatilityContracting(
-      bars,
-      config.consolidationPeriod,
-      config.priorPeriod,
-      heartbeatAnchor
-    );
+    const isConsolidating = isTightConsolidation(bars, config, heartbeatAnchor);
     // The close must clear the top of the consolidation, not just the SMA — a cross that's still inside the range isn't a breakout.
     const consolidationHigh = highestHigh(bars, config.consolidationPeriod, heartbeatAnchor);
     const volRatio = volumeRatio(bars, config.volumeAvgPeriod, endIndex);
@@ -120,7 +136,7 @@ export function runBreakoutScreen(
     close < sma50 &&
     pctBelowSma50 <= config.approachingThresholdPct &&
     sma50SlopePct >= config.minSma50SlopePct &&
-    isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex);
+    isTightConsolidation(bars, config, endIndex);
 
   if (isApproaching) {
     return {

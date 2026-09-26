@@ -33,8 +33,8 @@ describe("runBreakoutScreen", () => {
     const flatBars = Array.from({ length: 60 }, (_, i) =>
       makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
     );
-    // Last 15 bars tighten up close to (but below) the flat 50-day SMA.
-    const tightBars = Array.from({ length: 15 }, (_, i) =>
+    // Last 30 bars tighten up close to (but below) the flat 50-day SMA.
+    const tightBars = Array.from({ length: 30 }, (_, i) =>
       makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 117.8, high: 118.5, low: 117.5 })
     );
     const history: SymbolHistory = { symbol: "TEST", bars: [...flatBars, ...tightBars] };
@@ -49,7 +49,7 @@ describe("runBreakoutScreen", () => {
     const flatBars = Array.from({ length: 60 }, (_, i) =>
       makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
     );
-    const tightBars = Array.from({ length: 15 }, (_, i) =>
+    const tightBars = Array.from({ length: 30 }, (_, i) =>
       makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 117.8, high: 118.5, low: 117.5 })
     );
     const crossBar = makeBar({ date: new Date(2024, 3, 16), close: 121, open: 118, high: 121.5, low: 118, volume: 3_000_000 });
@@ -65,7 +65,7 @@ describe("runBreakoutScreen", () => {
       makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
     );
     // Tight range whose highs (121.5) sit above the 50-day SMA.
-    const tightBars = Array.from({ length: 15 }, (_, i) =>
+    const tightBars = Array.from({ length: 30 }, (_, i) =>
       makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 118, high: 121.5, low: 117.5 })
     );
     const crossBar = makeBar({ date: new Date(2024, 3, 16), close: 121, open: 118, high: 121.2, low: 118, volume: 3_000_000 });
@@ -74,15 +74,45 @@ describe("runBreakoutScreen", () => {
     expect(runBreakoutScreen(history)).toBeNull();
   });
 
+  it("skips approaching when the range has only narrowed by 25% (needs 40%)", () => {
+    // Prior range is 16/112 ≈ 14.3%; the last 30 bars span 11.8/110 ≈ 10.7% — a 0.75 ratio.
+    const flatBars = Array.from({ length: 60 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
+    );
+    const looseBars = Array.from({ length: 30 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 117.8, high: 121.8, low: 110 })
+    );
+    const history: SymbolHistory = { symbol: "TEST", bars: [...flatBars, ...looseBars] };
+
+    expect(runBreakoutScreen(history)).toBeNull();
+    expect(runBreakoutScreen(history, { ...DEFAULT_BREAKOUT_CONFIG, maxContractionRatio: 0.8, maxRangePct: 15 })?.state).toBe(
+      "approaching"
+    );
+  });
+
+  it("skips approaching when the range has narrowed but is still wider than 10%", () => {
+    // Prior range is 50/100 = 50%; the last 30 bars span 13/105 ≈ 12.4% — well contracted, but not tight.
+    const wideBars = Array.from({ length: 60 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 150, low: 100 })
+    );
+    const narrowerBars = Array.from({ length: 30 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 117.8, high: 118, low: 105 })
+    );
+    const history: SymbolHistory = { symbol: "TEST", bars: [...wideBars, ...narrowerBars] };
+
+    expect(runBreakoutScreen(history)).toBeNull();
+    expect(runBreakoutScreen(history, { ...DEFAULT_BREAKOUT_CONFIG, maxRangePct: 15 })?.state).toBe("approaching");
+  });
+
   it("skips approaching when the 50-day SMA is still declining", () => {
     // An older trend high rolling out of the window drags the 50-day SMA down ~2% over 10 days.
     const highBars = Array.from({ length: 50 }, (_, i) =>
       makeBar({ date: new Date(2024, 0, i + 1), close: 130, open: 128, high: 135, low: 125 })
     );
-    const midBars = Array.from({ length: 35 }, (_, i) =>
+    const midBars = Array.from({ length: 20 }, (_, i) =>
       makeBar({ date: new Date(2024, 3, i + 1), close: 120, open: 119, high: 128, low: 112 })
     );
-    const lowBars = Array.from({ length: 15 }, (_, i) =>
+    const lowBars = Array.from({ length: 30 }, (_, i) =>
       makeBar({ date: new Date(2024, 6, i + 1), close: 118, open: 117.8, high: 118.5, low: 117.5 })
     );
     const history: SymbolHistory = { symbol: "TEST", bars: [...highBars, ...midBars, ...lowBars] };
