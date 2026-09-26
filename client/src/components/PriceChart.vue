@@ -48,8 +48,10 @@ function render() {
     },
     timeScale: { borderVisible: false, rightOffset: 1 },
     rightPriceScale: { borderVisible: false },
-    handleScroll: { mouseWheel: true, pressedMouseMove: true },
-    handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+    // Wheel and two-finger trackpad swipes scroll the page, not the chart;
+    // pan by dragging the chart, zoom by dragging an axis.
+    handleScroll: { mouseWheel: false, pressedMouseMove: true },
+    handleScale: { axisPressedMouseMove: true, mouseWheel: false, pinch: true },
   });
 
   candleSeries = chart.addCandlestickSeries({
