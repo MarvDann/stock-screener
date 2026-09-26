@@ -50,3 +50,14 @@ export function formatAbbreviatedCurrency(value: number, currency = "USD"): stri
 export function formatRatio(value: number): string {
   return value.toFixed(2);
 }
+
+/** How long ago an ISO timestamp was, e.g. "5m ago", "3h ago", "2d ago"; a date after a week. */
+export function formatTimeAgo(iso: string, now = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}

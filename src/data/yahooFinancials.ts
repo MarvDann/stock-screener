@@ -1,5 +1,5 @@
 import YahooFinance from "yahoo-finance2";
-import { StockFinancials, TickerProfile } from "../types";
+import { CompanyProfile, StockFinancials, TickerProfile } from "../types";
 
 const yahooFinance = new YahooFinance();
 
@@ -7,17 +7,18 @@ export interface StockFundamentals {
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];
+  profile: CompanyProfile | null;
 }
 
 /**
  * Fetches fundamentals (margins, free cash flow, debt/equity, trailing P/E,
- * and trailing quarterly EPS) from yahoo-finance2's quoteSummary endpoint.
+ * trailing quarterly EPS, and the company profile) from yahoo-finance2's quoteSummary endpoint.
  * This is independent of the OHLCV MarketDataProvider in use — Yahoo is the
  * only free source for these fundamentals regardless of DATA_PROVIDER.
  */
 export async function getStockFundamentals(symbol: string): Promise<StockFundamentals> {
   const result = await yahooFinance.quoteSummary(symbol, {
-    modules: ["financialData", "summaryDetail", "earningsHistory"],
+    modules: ["financialData", "summaryDetail", "earningsHistory", "assetProfile"],
   });
 
   const fd = result.financialData;
@@ -48,7 +49,35 @@ export async function getStockFundamentals(symbol: string): Promise<StockFundame
     .slice(-4)
     .map((entry) => entry.epsActual);
 
-  return { financials, epsHistory };
+  return { financials, epsHistory, profile: toCompanyProfile(result.assetProfile) };
+}
+
+/** The assetProfile fields the overview uses. */
+interface AssetProfile {
+  longBusinessSummary?: string;
+  sector?: string;
+  industry?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  fullTimeEmployees?: number;
+  website?: string;
+}
+
+/** Blank strings become null; null when Yahoo has nothing to show at all. */
+function toCompanyProfile(ap: AssetProfile | undefined): CompanyProfile | null {
+  if (!ap) return null;
+  const text = (value: string | undefined) => value?.trim() || null;
+  const headquarters = [ap.city, ap.state, ap.country].map(text).filter(Boolean).join(", ") || null;
+  const profile: CompanyProfile = {
+    summary: text(ap.longBusinessSummary),
+    sector: text(ap.sector),
+    industry: text(ap.industry),
+    headquarters,
+    employees: ap.fullTimeEmployees ?? null,
+    website: text(ap.website),
+  };
+  return Object.values(profile).some((v) => v != null) ? profile : null;
 }
 
 /** Company display name from Yahoo's quote endpoint, or "" if it has none. */

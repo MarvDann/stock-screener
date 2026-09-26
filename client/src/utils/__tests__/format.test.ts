@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatPrice, formatRatio } from "../format";
+import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatPrice, formatRatio, formatTimeAgo } from "../format";
 
 describe("formatPercent", () => {
   it("converts a decimal fraction to a percentage string with 2 decimal places", () => {
@@ -101,5 +101,19 @@ describe("formatAbbreviatedCurrency with a currency", () => {
   it("uses that currency's symbol", () => {
     expect(formatAbbreviatedCurrency(1_600_000_000, "EUR")).toBe("€1.6B");
     expect(formatAbbreviatedCurrency(-2_500_000, "GBP")).toBe("-£2.5M");
+  });
+});
+
+describe("formatTimeAgo", () => {
+  const now = Date.parse("2026-09-26T12:00:00Z");
+
+  it("uses minutes, hours, then days", () => {
+    expect(formatTimeAgo("2026-09-26T11:55:00Z", now)).toBe("5m ago");
+    expect(formatTimeAgo("2026-09-26T09:00:00Z", now)).toBe("3h ago");
+    expect(formatTimeAgo("2026-09-24T12:00:00Z", now)).toBe("2d ago");
+  });
+
+  it("shows a date once it's a week old", () => {
+    expect(formatTimeAgo("2026-09-10T12:00:00Z", now)).toBe("Sep 10");
   });
 });
