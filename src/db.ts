@@ -21,4 +21,22 @@ db.exec(`
   )
 `);
 
+// Bumping a user's token_version signs out every session issued before it
+// (e.g. after a password change); requireAuth checks it on each request.
+const userColumns = (db.prepare("PRAGMA table_info(users)").all() as { name: string }[]).map((c) => c.name);
+if (!userColumns.includes("token_version")) {
+  db.exec("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0");
+}
+
+// Password reset links. Only a SHA-256 hash of each token is stored, so a
+// copy of the database can't be used to reset anyone's password.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )
+`);
+
 export default db;

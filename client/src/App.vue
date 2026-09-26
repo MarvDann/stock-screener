@@ -11,7 +11,8 @@ const router = useRouter();
 const route = useRoute();
 const { theme, toggleTheme, initTheme } = useTheme();
 
-const showSidebar = computed(() => route.name !== "login");
+// The login and password reset screens are full-page, without the sidebar.
+const showSidebar = computed(() => !route.meta.public);
 const themeIcon = computed(() => (theme.value === "dark" ? "☼" : "☾"));
 
 onMounted(initTheme);
@@ -37,6 +38,7 @@ function logout() {
       <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>
       <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
       <div class="sidebar-bottom">
+        <RouterLink to="/account" class="nav-link">Account</RouterLink>
         <button class="theme-btn" @click="toggleTheme" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`">{{ themeIcon }}</button>
         <button class="logout-btn" @click="logout">Log out</button>
       </div>

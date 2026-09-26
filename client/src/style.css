@@ -125,3 +125,93 @@ body {
 .error-state button:hover {
   opacity: 0.85;
 }
+
+/* ── Forms (login, password reset, account) ── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.field-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.field-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+}
+
+.form-error,
+.form-success {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 0;
+}
+
+.form-error {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+
+.form-success {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.form-submit {
+  margin-top: 8px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-footer {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.form-link,
+.form-footer a {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-ui);
+}
+
+.form-link:hover,
+.form-footer a:hover {
+  text-decoration: underline;
+}

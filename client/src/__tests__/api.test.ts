@@ -125,4 +125,14 @@ describe("api", () => {
     const { fetchBreakout } = await import("../api");
     await expect(fetchBreakout()).rejects.toThrow("Request failed (404)");
   });
+
+  it("reads the signed-in email from the stored token", async () => {
+    const { currentUserEmail, setToken } = await import("../api");
+    expect(currentUserEmail()).toBeNull();
+    const payload = btoa(JSON.stringify({ id: 1, email: "me@example.com" })).replace(/=+$/, "");
+    setToken(`header.${payload}.signature`);
+    expect(currentUserEmail()).toBe("me@example.com");
+    setToken("not-a-jwt");
+    expect(currentUserEmail()).toBeNull();
+  });
 });

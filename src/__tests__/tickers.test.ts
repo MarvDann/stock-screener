@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import express from "express";
-import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "../auth";
+import { createTestUser } from "./helpers";
 import { backfillProfiles, createTickersRouter, listSymbols, listTickers, getTickerName } from "../tickers";
 import db from "../db";
 import SEED_TICKERS from "../seed/tickers.json";
@@ -19,7 +18,7 @@ app.use(createTickersRouter({ lookupTicker, onChange }));
 
 let server: ReturnType<typeof app.listen>;
 let baseUrl: string;
-const token = jwt.sign({ id: 1, email: "t@example.com" }, JWT_SECRET);
+const { token } = createTestUser();
 
 function request(method: string, path: string, body?: unknown) {
   return fetch(`${baseUrl}${path}`, {

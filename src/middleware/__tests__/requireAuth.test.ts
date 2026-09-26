@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../requireAuth";
-import { JWT_SECRET } from "../../auth";
+import { JWT_SECRET } from "../../jwtSecret";
+import db from "../../db";
+import { createTestUser } from "../../__tests__/helpers";
 
 function mockReqResNext(authHeader?: string) {
   const req: any = { headers: { authorization: authHeader } };
@@ -41,11 +43,36 @@ describe("requireAuth", () => {
   });
 
   it("calls next and sets req.user with a valid token", () => {
-    const token = jwt.sign({ id: 1, email: "test@example.com" }, JWT_SECRET);
-    const { req, res, next } = mockReqResNext(`Bearer ${token}`);
+    const user = createTestUser("valid@example.com");
+    const { req, res, next } = mockReqResNext(`Bearer ${user.token}`);
     requireAuth(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(req.user).toMatchObject({ id: 1, email: "test@example.com" });
+    expect(req.user).toMatchObject({ id: user.id, email: "valid@example.com" });
+  });
+
+  it("accepts tokens issued before token versions existed while the version is still 0", () => {
+    const user = createTestUser();
+    const legacy = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
+    const { req, res, next } = mockReqResNext(`Bearer ${legacy}`);
+    requireAuth(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("rejects tokens issued before a password change", () => {
+    const user = createTestUser();
+    db.prepare("UPDATE users SET token_version = 1 WHERE id = ?").run(user.id);
+    const { req, res, next } = mockReqResNext(`Bearer ${user.token}`);
+    requireAuth(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects tokens for a user that no longer exists", () => {
+    const token = jwt.sign({ id: 999999, email: "gone@example.com", tv: 0 }, JWT_SECRET);
+    const { req, res, next } = mockReqResNext(`Bearer ${token}`);
+    requireAuth(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
   });
 });

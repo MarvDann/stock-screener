@@ -33,6 +33,23 @@ JWT_SECRET=some-random-secret
 an API key from financialmodelingprep.com). `JWT_SECRET` is used to sign
 authentication tokens — use a long random string in production.
 
+### Password reset emails (optional)
+
+"Forgot password?" emails a one-time reset link through
+[Resend](https://resend.com). Add to `.env`:
+
+```
+RESEND_API_KEY=re_your_key
+EMAIL_FROM=Stock Screener <onboarding@resend.dev>
+APP_URL=http://localhost:5173
+```
+
+`APP_URL` is where the app is opened, used to build the link. Without your
+own verified domain, Resend's shared `onboarding@resend.dev` sender can only
+deliver to the email your Resend account is registered with — fine for
+personal use. Without these settings, reset emails are printed to the server
+console instead of sent, so the flow still works locally.
+
 ## Running
 
 ```bash
@@ -46,7 +63,9 @@ be prompted to register or log in before accessing the screens.
 ## Auth
 
 The app uses email/password authentication with JWT tokens. Register an
-account on first use. Sessions last 7 days. User data is stored in a
+account on first use. Sessions last 7 days. Passwords can be changed from the
+Account page, or reset from the login screen via an emailed link; either
+signs out every other session. User data is stored in a
 local SQLite database (`data/screener.db`, gitignored).
 
 ## Database

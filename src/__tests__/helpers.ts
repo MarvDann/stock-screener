@@ -1,3 +1,6 @@
+import jwt from "jsonwebtoken";
+import db from "../db";
+import { JWT_SECRET } from "../jwtSecret";
 import { DailyBar } from "../types";
 
 export function makeBar(overrides: Partial<DailyBar> = {}): DailyBar {
@@ -23,4 +26,10 @@ export function makeBars(count: number, base: Partial<DailyBar> = {}): DailyBar[
       ...base,
     })
   );
+}
+
+/** Inserts a user and returns a valid login token for them (requireAuth checks the user exists). */
+export function createTestUser(email = `user-${Math.random().toString(36).slice(2)}@example.com`) {
+  const id = Number(db.prepare("INSERT INTO users (email, password_hash) VALUES (?, 'x')").run(email).lastInsertRowid);
+  return { id, email, token: jwt.sign({ id, email, tv: 0 }, JWT_SECRET) };
 }
