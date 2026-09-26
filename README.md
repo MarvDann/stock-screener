@@ -3,10 +3,10 @@
 A local web app with two screens, run on-demand against live end-of-day data:
 
 1. **Breakout screen** — flags stocks that have just crossed above their
-   150-day SMA (within the last 3 trading days) after a tight consolidation
-   ("heartbeat") on above-average volume ("Triggered"), plus stocks still
-   consolidating just below their 150-day SMA and within 5% of it
-   ("Approaching"). Results are sorted by relevance and paginated.
+   50-day SMA (within the last 3 trading days) after a tight consolidation
+   ("heartbeat") and closed above that consolidation's high on
+   above-average volume ("Triggered"), plus stocks still consolidating just
+   below their 50-day SMA and within 5% of it ("Approaching"). Results are sorted by relevance and paginated.
 2. **Sector rotation screen** — ranks the 11 SPDR sector ETFs by relative
    strength vs SPY over 1/3/6-month windows, plus a simple money-flow
    (accumulation/distribution) read, to show which sectors institutional

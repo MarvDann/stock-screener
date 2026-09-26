@@ -1,5 +1,5 @@
 import { BreakoutScreenResult, SymbolHistory } from "../types";
-import { sma } from "../indicators/movingAverage";
+import { highestHigh, sma } from "../indicators/movingAverage";
 import { isVolatilityContracting, rangeContractionPct, volumeRatio } from "../indicators/volatility";
 
 /** SMA period the breakout trigger and "approaching" state are measured against. */
@@ -91,9 +91,11 @@ export function runBreakoutScreen(
       config.priorPeriod,
       heartbeatAnchor
     );
+    // The close must clear the top of the consolidation, not just the SMA — a cross that's still inside the range isn't a breakout.
+    const consolidationHigh = highestHigh(bars, config.consolidationPeriod, heartbeatAnchor);
     const volRatio = volumeRatio(bars, config.volumeAvgPeriod, endIndex);
 
-    if (isConsolidating && volRatio >= config.minTriggerVolumeRatio) {
+    if (isConsolidating && close > consolidationHigh && volRatio >= config.minTriggerVolumeRatio) {
       return {
         symbol,
         name,

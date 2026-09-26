@@ -45,6 +45,35 @@ describe("runBreakoutScreen", () => {
     expect(result?.details.daysSinceCross).toBeNull();
   });
 
+  it("triggers when the cross closes above the consolidation high on heavy volume", () => {
+    const flatBars = Array.from({ length: 60 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
+    );
+    const tightBars = Array.from({ length: 15 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 117.8, high: 118.5, low: 117.5 })
+    );
+    const crossBar = makeBar({ date: new Date(2024, 3, 16), close: 121, open: 118, high: 121.5, low: 118, volume: 3_000_000 });
+    const history: SymbolHistory = { symbol: "TEST", bars: [...flatBars, ...tightBars, crossBar] };
+    const result = runBreakoutScreen(history);
+
+    expect(result?.state).toBe("triggered");
+    expect(result?.details.daysSinceCross).toBe(0);
+  });
+
+  it("does not trigger when the cross closes inside the consolidation range", () => {
+    const flatBars = Array.from({ length: 60 }, (_, i) =>
+      makeBar({ date: new Date(2024, 0, i + 1), close: 120, open: 119, high: 128, low: 112 })
+    );
+    // Tight range whose highs (121.5) sit above the 50-day SMA.
+    const tightBars = Array.from({ length: 15 }, (_, i) =>
+      makeBar({ date: new Date(2024, 3, i + 1), close: 118, open: 118, high: 121.5, low: 117.5 })
+    );
+    const crossBar = makeBar({ date: new Date(2024, 3, 16), close: 121, open: 118, high: 121.2, low: 118, volume: 3_000_000 });
+    const history: SymbolHistory = { symbol: "TEST", bars: [...flatBars, ...tightBars, crossBar] };
+
+    expect(runBreakoutScreen(history)).toBeNull();
+  });
+
   it("skips approaching when the 50-day SMA is still declining", () => {
     // An older trend high rolling out of the window drags the 50-day SMA down ~2% over 10 days.
     const highBars = Array.from({ length: 50 }, (_, i) =>
