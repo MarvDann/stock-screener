@@ -2,6 +2,7 @@ import express from "express";
 import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { FmpMarketDataProvider } from "./data/fmpProvider";
 import { getQuoteName, getStockFundamentals, getTickerProfile } from "./data/yahooFinancials";
+import { getCompanyNews } from "./data/companyNews";
 import { runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { BENCHMARK_SYMBOL } from "./universe";
@@ -314,10 +315,16 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
     const history = toMajorUnits(raw, currency);
     const visibleCount = Math.min(history.bars.length, DETAIL_CHART_BARS);
     const screenResult = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, name);
-    const fundamentals = await getStockFundamentals(symbol).catch((err) => {
-      console.error(`Fundamentals fetch failed for ${symbol}:`, err.message);
-      return { financials: null, epsHistory: [] };
-    });
+    const [fundamentals, news] = await Promise.all([
+      getStockFundamentals(symbol).catch((err) => {
+        console.error(`Fundamentals fetch failed for ${symbol}:`, err.message);
+        return { financials: null, epsHistory: [], profile: null };
+      }),
+      getCompanyNews(symbol, name).catch((err) => {
+        console.error(`News fetch failed for ${symbol}:`, err.message);
+        return [];
+      }),
+    ]);
     const response: StockDetailResponse = {
       symbol,
       name,
@@ -328,6 +335,8 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
       details: screenResult?.details ?? null,
       financials: fundamentals.financials,
       epsHistory: fundamentals.epsHistory,
+      profile: fundamentals.profile,
+      news,
     };
     res.json(response);
   } catch (err) {

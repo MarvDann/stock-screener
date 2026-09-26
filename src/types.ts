@@ -124,6 +124,25 @@ export interface StockFinancials {
   financialCurrency: string | null;
 }
 
+/** What a company does and where it is, from Yahoo's assetProfile module. */
+export interface CompanyProfile {
+  summary: string | null;
+  sector: string | null;
+  industry: string | null;
+  /** e.g. "Cupertino, CA, United States" */
+  headquarters: string | null;
+  employees: number | null;
+  website: string | null;
+}
+
+export interface NewsItem {
+  title: string;
+  publisher: string;
+  link: string;
+  /** ISO timestamp */
+  publishedAt: string;
+}
+
 export interface StockDetailResponse {
   symbol: string;
   name: string;
@@ -136,6 +155,9 @@ export interface StockDetailResponse {
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];
+  profile: CompanyProfile | null;
+  /** Recent headlines about the company, newest first. */
+  news: NewsItem[];
 }
 
 /** Everything the home page shows about the tracked universe, from one scan. */

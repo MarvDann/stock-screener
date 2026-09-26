@@ -62,6 +62,25 @@ export interface StockFinancials {
   financialCurrency: string | null;
 }
 
+/** What a company does and where it is. */
+export interface CompanyProfile {
+  summary: string | null;
+  sector: string | null;
+  industry: string | null;
+  /** e.g. "Cupertino, CA, United States" */
+  headquarters: string | null;
+  employees: number | null;
+  website: string | null;
+}
+
+export interface NewsItem {
+  title: string;
+  publisher: string;
+  link: string;
+  /** ISO timestamp */
+  publishedAt: string;
+}
+
 export interface StockDetail {
   symbol: string;
   name: string;
@@ -81,6 +100,9 @@ export interface StockDetail {
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];
+  profile: CompanyProfile | null;
+  /** Recent headlines about the company, newest first. */
+  news: NewsItem[];
 }
 
 export interface SectorRotationResult {

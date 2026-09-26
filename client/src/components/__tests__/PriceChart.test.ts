@@ -43,6 +43,19 @@ beforeEach(() => {
 });
 
 describe("PriceChart", () => {
+  it("leaves wheel and two-finger trackpad scrolling to the page", () => {
+    mount(PriceChart, { props: { bars: [makeBar({ date: "2024-01-02" })], sma50Series: [NaN], sma150Series: [NaN] } });
+
+    const options = createChart.mock.calls[0][1] as {
+      handleScroll: { mouseWheel: boolean; pressedMouseMove: boolean };
+      handleScale: { mouseWheel: boolean; axisPressedMouseMove: boolean };
+    };
+    expect(options.handleScroll.mouseWheel).toBe(false);
+    expect(options.handleScale.mouseWheel).toBe(false);
+    expect(options.handleScroll.pressedMouseMove).toBe(true);
+    expect(options.handleScale.axisPressedMouseMove).toBe(true);
+  });
+
   it("creates a chart with candlestick, volume, and SMA series on mount", () => {
     mount(PriceChart, {
       props: {

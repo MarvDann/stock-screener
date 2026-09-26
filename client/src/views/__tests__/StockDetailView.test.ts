@@ -35,6 +35,22 @@ function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
       financialCurrency: "USD",
     },
     epsHistory: [1.1, 1.3, -0.2, 1.5],
+    profile: {
+      summary: "Apple Inc. designs, manufactures, and markets smartphones.",
+      sector: "Technology",
+      industry: "Consumer Electronics",
+      headquarters: "Cupertino, CA, United States",
+      employees: 150000,
+      website: "https://www.apple.com",
+    },
+    news: [
+      {
+        title: "Apple (AAPL) Plans a Health App Overhaul",
+        publisher: "Insider Monkey",
+        link: "https://finance.yahoo.com/news/apple-health",
+        publishedAt: "2026-09-26T10:00:00.000Z",
+      },
+    ],
     ...overrides,
   };
 }
@@ -134,6 +150,23 @@ describe("StockDetailView financial cards", () => {
     expect(statValue(wrapper, "Trailing P/E Ratio")).toBeUndefined();
   });
 
+  it("shows the financial cards when the stock isn't a breakout candidate", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ details: null }));
+    const wrapper = await mountView();
+
+    expect(statValue(wrapper, "Gross Margin")).toBe("42.35%");
+    expect(statValue(wrapper, "Trailing P/E Ratio")).toBe("28.41");
+    expect(wrapper.findComponent(EpsChart).exists()).toBe(true);
+    expect(statValue(wrapper, "Close")).toBeUndefined();
+    expect(statValue(wrapper, "Volume Ratio")).toBeUndefined();
+  });
+
+  it("has no stats grid when there's neither screen data nor financials", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ details: null, financials: null, epsHistory: [] }));
+    const wrapper = await mountView();
+    expect(wrapper.find(".stats-grid").exists()).toBe(false);
+  });
+
   it("removes the Days Since Cross stat card", async () => {
     fetchStockDetail.mockResolvedValue(makeStockDetail());
     const wrapper = await mountView();
@@ -166,6 +199,78 @@ describe("StockDetailView EPS chart", () => {
     const wrapper = await mountView();
 
     expect(wrapper.findComponent(EpsChart).exists()).toBe(false);
+  });
+});
+
+describe("StockDetailView company overview", () => {
+  function fact(wrapper: VueWrapper, label: string): string | undefined {
+    return wrapper
+      .findAll(".fact")
+      .find((f) => f.find("dt").text() === label)
+      ?.find("dd")
+      .text();
+  }
+
+  it("shows the business summary and company facts", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail());
+    const wrapper = await mountView();
+
+    expect(wrapper.find(".summary").text()).toBe("Apple Inc. designs, manufactures, and markets smartphones.");
+    expect(fact(wrapper, "Sector")).toBe("Technology");
+    expect(fact(wrapper, "Industry")).toBe("Consumer Electronics");
+    expect(fact(wrapper, "Headquarters")).toBe("Cupertino, CA, United States");
+    expect(fact(wrapper, "Employees")).toBe("150,000");
+    expect(fact(wrapper, "Website")).toBe("apple.com");
+    expect(wrapper.find(".fact a").attributes("href")).toBe("https://www.apple.com/");
+  });
+
+  it("shows the overview even when the stock isn't a breakout candidate", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ details: null }));
+    const wrapper = await mountView();
+    expect(wrapper.find(".about").exists()).toBe(true);
+    expect(wrapper.find(".news").exists()).toBe(true);
+  });
+
+  it("skips facts Yahoo doesn't have and non-web links", async () => {
+    const profile = { ...makeStockDetail().profile!, employees: null, website: "javascript:alert(1)" };
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ profile }));
+    const wrapper = await mountView();
+    expect(fact(wrapper, "Employees")).toBeUndefined();
+    expect(fact(wrapper, "Website")).toBeUndefined();
+  });
+
+  it("collapses a long summary behind Show more", async () => {
+    const profile = { ...makeStockDetail().profile!, summary: "Long. ".repeat(100) };
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ profile }));
+    const wrapper = await mountView();
+
+    expect(wrapper.find(".summary").classes()).toContain("clamped");
+    await wrapper.find(".more-btn").trigger("click");
+    expect(wrapper.find(".summary").classes()).not.toContain("clamped");
+    expect(wrapper.find(".more-btn").text()).toBe("Show less");
+  });
+
+  it("has no Show more button for a short summary", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail());
+    const wrapper = await mountView();
+    expect(wrapper.find(".more-btn").exists()).toBe(false);
+  });
+
+  it("lists news headlines linking out in a new tab", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail());
+    const wrapper = await mountView();
+
+    const link = wrapper.find(".news-title");
+    expect(link.text()).toBe("Apple (AAPL) Plans a Health App Overhaul");
+    expect(link.attributes("href")).toBe("https://finance.yahoo.com/news/apple-health");
+    expect(link.attributes("target")).toBe("_blank");
+    expect(wrapper.find(".news-meta").text()).toContain("Insider Monkey");
+  });
+
+  it("hides the whole overview when there's no profile or news, e.g. for an ETF", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ profile: null, news: [] }));
+    const wrapper = await mountView();
+    expect(wrapper.find(".overview").exists()).toBe(false);
   });
 });
 
