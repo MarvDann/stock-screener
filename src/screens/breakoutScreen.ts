@@ -10,10 +10,14 @@ export interface BreakoutScreenConfig {
   consolidationPeriod: number;
   /** Prior window compared against to confirm contraction. Default 40 trading days. */
   priorPeriod: number;
-  /** Max ratio of the consolidation range to the prior window's range. Default 0.6 (at least 40% tighter). */
+  /** Max ratio of the consolidation range to the prior window's range. Default 1 (no wider than before). */
   maxContractionRatio: number;
   /** Max width of the consolidation range, as a percent of its low. Default 10. */
   maxRangePct: number;
+  /** Min times the close crosses the 50-day SMA (either way) during the consolidation — the "heartbeat". Default 3. */
+  minSmaCrosses: number;
+  /** Max % the 50-day SMA may move (up or down) across the consolidation, so the chop is horizontal. Default 4. */
+  maxSma50DriftPct: number;
   /** Max distance below the 50-day SMA, as a percent, to count as "approaching". Default 5. */
   approachingThresholdPct: number;
   /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 2x. */
@@ -22,26 +26,19 @@ export interface BreakoutScreenConfig {
   volumeAvgPeriod: number;
   /** How many trailing trading days (including today) to look back for the MA50 cross. Default 3. */
   crossLookbackDays: number;
-  /** Trading days over which the 50-day SMA's slope is measured for "approaching". Default 10. */
-  slopeLookbackDays: number;
-  /**
-   * Minimum % change in the 50-day SMA over `slopeLookbackDays` to count as "approaching".
-   * Slightly negative so a leveled-out SMA still qualifies. Default -0.5.
-   */
-  minSma50SlopePct: number;
 }
 
 export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
   consolidationPeriod: 30,
   priorPeriod: 40,
-  maxContractionRatio: 0.6,
+  maxContractionRatio: 1,
   maxRangePct: 10,
+  minSmaCrosses: 3,
+  maxSma50DriftPct: 4,
   approachingThresholdPct: 5,
   minTriggerVolumeRatio: 2,
   volumeAvgPeriod: 20,
   crossLookbackDays: 3,
-  slopeLookbackDays: 10,
-  minSma50SlopePct: -0.5,
 };
 
 /**
@@ -69,16 +66,37 @@ function findCrossDayIndex(
   return null;
 }
 
+/** Times the close crossed the 50-day SMA (either direction) within the `period` bars ending at `endIndex`. */
+function countSmaCrosses(bars: SymbolHistory["bars"], period: number, endIndex: number): number {
+  let crosses = 0;
+  let wasAbove: boolean | null = null;
+  for (let i = endIndex - period + 1; i <= endIndex; i++) {
+    const smaAtI = sma(bars, TRIGGER_SMA_PERIOD, i);
+    if (isNaN(smaAtI)) continue;
+    const isAbove = bars[i].close > smaAtI;
+    if (wasAbove !== null && isAbove !== wasAbove) crosses++;
+    wasAbove = isAbove;
+  }
+  return crosses;
+}
+
 /**
- * True when the consolidation window ending at `endIndex` is both narrower
- * than the prior window and narrow in absolute terms.
+ * True when the consolidation window ending at `endIndex` is a "heartbeat":
+ * horizontal chop back and forth across a flat 50-day SMA, in a range that's
+ * narrow and no wider than the prior window. A stock that trended up and has
+ * just dipped through its SMA crosses it once, against a rising SMA, so fails.
  */
-function isTightConsolidation(
+function isHeartbeatConsolidation(
   bars: SymbolHistory["bars"],
   config: BreakoutScreenConfig,
   endIndex: number
 ): boolean {
+  const smaNow = sma(bars, TRIGGER_SMA_PERIOD, endIndex);
+  const smaAtStart = sma(bars, TRIGGER_SMA_PERIOD, endIndex - config.consolidationPeriod + 1);
+  const smaDriftPct = Math.abs((smaNow - smaAtStart) / smaAtStart) * 100;
   return (
+    smaDriftPct <= config.maxSma50DriftPct &&
+    countSmaCrosses(bars, config.consolidationPeriod, endIndex) >= config.minSmaCrosses &&
     rangeContractionPct(bars, config.consolidationPeriod, endIndex) <= config.maxRangePct &&
     isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex, config.maxContractionRatio)
   );
@@ -106,7 +124,7 @@ export function runBreakoutScreen(
   const crossDayIndex = findCrossDayIndex(bars, endIndex, config.crossLookbackDays);
   if (crossDayIndex !== null) {
     const heartbeatAnchor = crossDayIndex - 1;
-    const isConsolidating = isTightConsolidation(bars, config, heartbeatAnchor);
+    const isConsolidating = isHeartbeatConsolidation(bars, config, heartbeatAnchor);
     // The close must clear the top of the consolidation, not just the SMA — a cross that's still inside the range isn't a breakout.
     const consolidationHigh = highestHigh(bars, config.consolidationPeriod, heartbeatAnchor);
     const volRatio = volumeRatio(bars, config.volumeAvgPeriod, endIndex);
@@ -128,15 +146,10 @@ export function runBreakoutScreen(
     }
   }
 
-  // Leveled out or turning up — excludes stocks sliding under a falling 50-day SMA.
-  const priorSma50 = sma(bars, TRIGGER_SMA_PERIOD, endIndex - config.slopeLookbackDays);
-  const sma50SlopePct = ((sma50 - priorSma50) / priorSma50) * 100;
-
   const isApproaching =
     close < sma50 &&
     pctBelowSma50 <= config.approachingThresholdPct &&
-    sma50SlopePct >= config.minSma50SlopePct &&
-    isTightConsolidation(bars, config, endIndex);
+    isHeartbeatConsolidation(bars, config, endIndex);
 
   if (isApproaching) {
     return {
