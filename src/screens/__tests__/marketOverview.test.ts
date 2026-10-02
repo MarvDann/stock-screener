@@ -58,11 +58,20 @@ describe("computeMarketOverview", () => {
     expect(o.breadth.aboveSma50).toBe(1);
   });
 
+  it("counts stocks above their 200-day SMA out of those with enough history", () => {
+    const o = computeMarketOverview([
+      history("ABOVE", 100, 120, "2026-09-25", 210),
+      history("BELOW", 100, 80, "2026-09-25", 210),
+      history("SHORT", 100, 120, "2026-09-25", 60),
+    ]);
+    expect(o.breadth).toMatchObject({ total: 3, withSma200: 2, aboveSma200: 1 });
+  });
+
   it("handles no usable data", () => {
     const o = computeMarketOverview([{ symbol: "X", bars: [] }]);
     expect(o).toEqual({
       asOf: null,
-      breadth: { total: 0, advancers: 0, decliners: 0, unchanged: 0, aboveSma50: 0 },
+      breadth: { total: 0, advancers: 0, decliners: 0, unchanged: 0, aboveSma50: 0, withSma200: 0, aboveSma200: 0 },
       gainers: [],
       losers: [],
     });

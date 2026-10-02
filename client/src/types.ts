@@ -163,6 +163,9 @@ export interface Breadth {
   decliners: number;
   unchanged: number;
   aboveSma50: number;
+  /** Stocks with enough history for a 200-day SMA — the denominator for aboveSma200. */
+  withSma200: number;
+  aboveSma200: number;
 }
 
 export interface OverviewResponse {

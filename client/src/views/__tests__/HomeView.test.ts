@@ -30,7 +30,7 @@ function makeOverview(overrides: Partial<OverviewResponse> = {}): OverviewRespon
   return {
     asOf: "2026-09-25",
     tracked: 644,
-    breadth: { total: 640, advancers: 420, decliners: 200, unchanged: 20, aboveSma50: 400 },
+    breadth: { total: 640, advancers: 420, decliners: 200, unchanged: 20, aboveSma50: 400, withSma200: 600, aboveSma200: 300 },
     gainers: [{ symbol: "NVDA", name: "Nvidia", close: 190.5, changePct: 6.25, currency: "USD" }],
     losers: [{ symbol: "SHEL.L", name: "Shell", close: 36.11, changePct: -3.4, currency: "GBP" }],
     breakouts: {
@@ -109,7 +109,7 @@ describe("HomeView", () => {
     [200, "Broad selling across the market"],
     [320, "A mixed session for stocks"],
   ])("picks the headline from breadth (%i of 640 up)", async (advancers, headline) => {
-    fetchOverview.mockResolvedValue(makeOverview({ breadth: { total: 640, advancers, decliners: 640 - advancers, unchanged: 0, aboveSma50: 0 } }));
+    fetchOverview.mockResolvedValue(makeOverview({ breadth: { total: 640, advancers, decliners: 640 - advancers, unchanged: 0, aboveSma50: 0, withSma200: 0, aboveSma200: 0 } }));
     const wrapper = await mountView();
     expect(wrapper.find(".headline").text()).toBe(headline);
   });
@@ -133,6 +133,9 @@ describe("HomeView", () => {
     expect(wrapper.find(".breadth-legend").text()).toContain("420 advancing");
     expect(wrapper.find(".breadth-legend").text()).toContain("200 declining");
     expect(wrapper.find(".meter-head b").text()).toBe("62.5%");
+    const meters = wrapper.findAll(".meter-head");
+    expect(meters[1].text()).toContain("Above 200-day SMA");
+    expect(meters[1].find("b").text()).toBe("50.0%");
   });
 
   it("lists the top three and bottom three sectors", async () => {

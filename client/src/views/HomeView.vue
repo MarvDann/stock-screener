@@ -205,6 +205,15 @@ onMounted(() => {
               <span class="meter-fill" :style="{ width: share(breadth.aboveSma50, breadth.total) }"></span>
             </div>
           </div>
+          <div v-if="breadth.withSma200" class="meter">
+            <div class="meter-head">
+              <span>Above 200-day SMA</span>
+              <b>{{ share(breadth.aboveSma200, breadth.withSma200) }}</b>
+            </div>
+            <div class="meter-track">
+              <span class="meter-fill" :style="{ width: share(breadth.aboveSma200, breadth.withSma200) }"></span>
+            </div>
+          </div>
         </template>
         <div v-else-if="overview.error.value && !overview.data.value" class="panel-error">
           {{ overview.error.value }} <button class="link-btn" @click="overview.load({ force: true })">Retry</button>
@@ -631,6 +640,9 @@ onMounted(() => {
   border-radius: 999px;
   background: var(--accent);
   transition: width 0.4s ease;
+}
+.meter {
+  padding-bottom: 8px;
 }
 
 /* ── Rotation ── */

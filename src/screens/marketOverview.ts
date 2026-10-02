@@ -17,6 +17,10 @@ export interface Breadth {
   unchanged: number;
   /** Stocks closing above their 50-day SMA; only those with 50+ bars are eligible. */
   aboveSma50: number;
+  /** Stocks with 200+ bars, i.e. eligible for the 200-day SMA check below. */
+  withSma200: number;
+  /** Stocks closing above their 200-day SMA; only those with 200+ bars are eligible. */
+  aboveSma200: number;
 }
 
 export interface MarketOverview {
@@ -34,6 +38,8 @@ interface DayChange {
   close: number;
   changePct: number;
   aboveSma50: boolean;
+  /** Null when there's too little history for a 200-day SMA. */
+  aboveSma200: boolean | null;
 }
 
 /**
@@ -54,24 +60,30 @@ function latestDayChanges(histories: SymbolHistory[]): { asOf: string | null; ch
     if (dayKey(last.date) !== asOf) continue;
     const prev = h.bars[h.bars.length - 2];
     const sma50 = sma(h.bars, 50, h.bars.length - 1);
+    const sma200 = sma(h.bars, 200, h.bars.length - 1);
     changes.push({
       symbol: h.symbol,
       close: last.close,
       changePct: ((last.close - prev.close) / prev.close) * 100,
       aboveSma50: !isNaN(sma50) && last.close > sma50,
+      aboveSma200: isNaN(sma200) ? null : last.close > sma200,
     });
   }
   return { asOf, changes };
 }
 
 function breadthOf(changes: DayChange[]): Breadth {
-  const breadth: Breadth = { total: 0, advancers: 0, decliners: 0, unchanged: 0, aboveSma50: 0 };
+  const breadth: Breadth = { total: 0, advancers: 0, decliners: 0, unchanged: 0, aboveSma50: 0, withSma200: 0, aboveSma200: 0 };
   for (const c of changes) {
     breadth.total++;
     if (c.changePct > 0) breadth.advancers++;
     else if (c.changePct < 0) breadth.decliners++;
     else breadth.unchanged++;
     if (c.aboveSma50) breadth.aboveSma50++;
+    if (c.aboveSma200 !== null) {
+      breadth.withSma200++;
+      if (c.aboveSma200) breadth.aboveSma200++;
+    }
   }
   return breadth;
 }

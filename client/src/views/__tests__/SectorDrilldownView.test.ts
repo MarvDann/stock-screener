@@ -17,7 +17,7 @@ vi.mock("../../api", () => ({
 }));
 
 function groupStats(advancers: number, decliners: number, avgChangePct: number, aboveSma50 = 0) {
-  return { total: advancers + decliners, advancers, decliners, unchanged: 0, aboveSma50, avgChangePct };
+  return { total: advancers + decliners, advancers, decliners, unchanged: 0, aboveSma50, withSma200: 0, aboveSma200: 0, avgChangePct };
 }
 
 const STATS: SectorStatsResponse = {
