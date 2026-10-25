@@ -1,23 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { onMounted } from "vue";
 import { useTheme } from "../composables/useTheme";
+import ThemeSwitcher from "./ThemeSwitcher.vue";
 
 defineProps<{ subtitle: string }>();
 
-const { theme, toggleTheme, initTheme } = useTheme();
-const themeIcon = computed(() => (theme.value === "dark" ? "☼" : "☾"));
+const { initTheme } = useTheme();
 onMounted(initTheme);
 </script>
 
 <template>
   <div class="auth-page">
-    <button
-      class="theme-toggle"
-      @click="toggleTheme"
-      :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`"
-    >
-      {{ themeIcon }}
-    </button>
+    <ThemeSwitcher class="theme-toggle" />
     <div class="auth-card">
       <h1 class="auth-title">Stock Screener</h1>
       <p class="auth-subtitle">{{ subtitle }}</p>
@@ -40,19 +34,6 @@ onMounted(initTheme);
   position: absolute;
   top: 16px;
   right: 16px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 16px;
-  padding: 6px 10px;
-  cursor: pointer;
-  line-height: 1;
-  transition: color 0.15s, border-color 0.15s;
-}
-.theme-toggle:hover {
-  color: var(--text-primary);
-  border-color: var(--text-muted);
 }
 .auth-card {
   width: 100%;

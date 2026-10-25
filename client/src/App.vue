@@ -3,17 +3,17 @@ import { useRouter, useRoute } from "vue-router";
 import { computed, onMounted } from "vue";
 import { isAuthenticated, clearToken } from "./api";
 import { useTheme } from "./composables/useTheme";
+import ThemeSwitcher from "./components/ThemeSwitcher.vue";
 import { resetStockCardCache } from "./composables/useStockCards";
 import { resetCachedResources } from "./composables/useCachedResource";
 import { cacheClear } from "./utils/persistentCache";
 
 const router = useRouter();
 const route = useRoute();
-const { theme, toggleTheme, initTheme } = useTheme();
+const { initTheme } = useTheme();
 
 // The login and password reset screens are full-page, without the sidebar.
 const showSidebar = computed(() => !route.meta.public);
-const themeIcon = computed(() => (theme.value === "dark" ? "☼" : "☾"));
 
 onMounted(initTheme);
 
@@ -41,7 +41,7 @@ function logout() {
       <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
       <div class="sidebar-bottom">
         <RouterLink to="/account" class="nav-link">Account</RouterLink>
-        <button class="theme-btn" @click="toggleTheme" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`">{{ themeIcon }}</button>
+        <ThemeSwitcher />
         <button class="logout-btn" @click="logout">Log out</button>
       </div>
     </nav>
@@ -94,7 +94,7 @@ function logout() {
 }
 .nav-link.router-link-active {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 .content {
   flex: 1;
@@ -119,21 +119,6 @@ function logout() {
   transition: color 0.15s, border-color 0.15s;
 }
 .logout-btn:hover {
-  color: var(--text-primary);
-  border-color: var(--text-muted);
-}
-.theme-btn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 16px;
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  line-height: 1;
-}
-.theme-btn:hover {
   color: var(--text-primary);
   border-color: var(--text-muted);
 }

@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ColorType, createChart, LineStyle, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
-import { useTheme } from "../composables/useTheme";
+import { useTheme, type Theme } from "../composables/useTheme";
 
 const props = withDefaults(
   defineProps<{ bars: DailyBar[]; sma50Series: number[]; sma150Series: number[]; height?: number }>(),
@@ -17,14 +17,24 @@ let sma150Series: ISeriesApi<"Line"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-const UP_COLOR = "#17c964";
-const DOWN_COLOR = "#f5384e";
-const VOLUME_UP_COLOR = "rgba(23, 201, 100, 0.5)";
-const VOLUME_DOWN_COLOR = "rgba(245, 56, 78, 0.5)";
+const STANDARD_CANDLES = {
+  up: "#17c964",
+  down: "#f5384e",
+  volumeUp: "rgba(23, 201, 100, 0.5)",
+  volumeDown: "rgba(245, 56, 78, 0.5)",
+};
 
-const chartColors = {
-  dark: { text: "#8b8fa3", grid: "rgba(91, 95, 114, 0.12)" },
-  light: { text: "#5c6070", grid: "rgba(91, 95, 114, 0.18)" },
+const chartColors: Record<Theme, { text: string; grid: string; up: string; down: string; volumeUp: string; volumeDown: string }> = {
+  dark: { text: "#8b8fa3", grid: "rgba(91, 95, 114, 0.12)", ...STANDARD_CANDLES },
+  light: { text: "#5c6070", grid: "rgba(91, 95, 114, 0.18)", ...STANDARD_CANDLES },
+  matrix: {
+    text: "#3fbf63",
+    grid: "rgba(0, 255, 65, 0.08)",
+    up: "#00ff41",
+    down: "#ff4d5e",
+    volumeUp: "rgba(0, 255, 65, 0.4)",
+    volumeDown: "rgba(255, 77, 94, 0.45)",
+  },
 };
 
 function render() {
@@ -34,17 +44,18 @@ function render() {
     chart = null;
   }
 
+  const colors = chartColors[theme.value];
   chart = createChart(container.value, {
     width: container.value.clientWidth,
     height: props.height,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
-      textColor: chartColors[theme.value].text,
+      textColor: colors.text,
       fontSize: 10,
     },
     grid: {
-      vertLines: { color: chartColors[theme.value].grid },
-      horzLines: { color: chartColors[theme.value].grid },
+      vertLines: { color: colors.grid },
+      horzLines: { color: colors.grid },
     },
     timeScale: { borderVisible: false, rightOffset: 1 },
     rightPriceScale: { borderVisible: false },
@@ -55,11 +66,11 @@ function render() {
   });
 
   candleSeries = chart.addCandlestickSeries({
-    upColor: UP_COLOR,
-    downColor: DOWN_COLOR,
+    upColor: colors.up,
+    downColor: colors.down,
     borderVisible: false,
-    wickUpColor: UP_COLOR,
-    wickDownColor: DOWN_COLOR,
+    wickUpColor: colors.up,
+    wickDownColor: colors.down,
     priceLineWidth: 1,
     priceLineStyle: LineStyle.Dashed,
   });
@@ -88,7 +99,7 @@ function render() {
     props.bars.map((b) => ({
       time: b.date.slice(0, 10),
       value: b.volume,
-      color: b.close >= b.open ? VOLUME_UP_COLOR : VOLUME_DOWN_COLOR,
+      color: b.close >= b.open ? colors.volumeUp : colors.volumeDown,
     }))
   );
 

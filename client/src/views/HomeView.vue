@@ -369,8 +369,8 @@ onMounted(() => {
   padding: 28px 28px 30px;
   min-height: 190px;
   background:
-    radial-gradient(900px 260px at 0% 0%, rgba(76, 141, 255, 0.16), transparent 65%),
-    radial-gradient(600px 200px at 100% 100%, rgba(23, 201, 100, 0.08), transparent 70%),
+    radial-gradient(900px 260px at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
+    radial-gradient(600px 200px at 100% 100%, color-mix(in srgb, var(--positive) 8%, transparent), transparent 70%),
     var(--bg-elevated);
 }
 /* Hero content sits above the background artwork. */

@@ -10,6 +10,7 @@
   --text-muted: #5c6070;
   --accent: #4c8dff;
   --accent-hover: #6ea1ff;
+  --on-accent: #ffffff;
   --positive: #17c964;
   --positive-soft: rgba(23, 201, 100, 0.14);
   --negative: #f5384e;
@@ -33,6 +34,7 @@
   --text-muted: #9ca0b0;
   --accent: #4c8dff;
   --accent-hover: #3b7cf0;
+  --on-accent: #ffffff;
   --positive: #0fa958;
   --positive-soft: rgba(15, 169, 88, 0.12);
   --negative: #e5303e;
@@ -40,6 +42,35 @@
   --warning-bg: #fef9ec;
   --warning-border: #e8d48a;
   --warning-text: #92710c;
+}
+
+/* Green-on-black terminal look. Losses stay red so up and down still read apart. */
+[data-theme="matrix"] {
+  --bg: #000a02;
+  --bg-elevated: #021006;
+  --surface: #04180a;
+  --surface-hover: #08240f;
+  --border: #0f3d1b;
+  --border-subtle: #0a2a13;
+  --text-primary: #c8ffd4;
+  --text-secondary: #3fbf63;
+  --text-muted: #1f7a3a;
+  --accent: #00ff41;
+  --accent-hover: #5cff85;
+  --on-accent: #001a07;
+  --positive: #00ff41;
+  --positive-soft: rgba(0, 255, 65, 0.14);
+  --negative: #ff4d5e;
+  --negative-soft: rgba(255, 77, 94, 0.14);
+  --warning-bg: #141a04;
+  --warning-border: #3d4a0c;
+  --warning-text: #d4ff3a;
+  --font-ui: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+[data-theme="matrix"] h1,
+[data-theme="matrix"] h2 {
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.45);
 }
 
 * {
@@ -69,7 +100,7 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 6px 14px;

@@ -38,17 +38,41 @@ describe("useTheme", () => {
     expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 
-  it("toggleTheme flips between dark and light and persists the choice", async () => {
+  it("initTheme restores a stored matrix preference", async () => {
+    localStorage.setItem("theme", "matrix");
     const { useTheme } = await freshTheme();
-    const { theme, toggleTheme } = useTheme();
+    const { theme, initTheme } = useTheme();
 
-    toggleTheme();
-    expect(theme.value).toBe("light");
-    expect(localStorage.getItem("theme")).toBe("light");
+    initTheme();
+
+    expect(theme.value).toBe("matrix");
+    expect(document.documentElement.dataset.theme).toBe("matrix");
+  });
+
+  it("initTheme falls back to dark for an unknown stored value", async () => {
+    localStorage.setItem("theme", "neon");
+    const { useTheme } = await freshTheme();
+    const { theme, initTheme } = useTheme();
+
+    initTheme();
+
+    expect(theme.value).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+
+  it("setTheme applies and persists each theme", async () => {
+    const { useTheme } = await freshTheme();
+    const { theme, setTheme } = useTheme();
+
+    setTheme("matrix");
+    expect(theme.value).toBe("matrix");
+    expect(localStorage.getItem("theme")).toBe("matrix");
+    expect(document.documentElement.dataset.theme).toBe("matrix");
+
+    setTheme("light");
     expect(document.documentElement.dataset.theme).toBe("light");
 
-    toggleTheme();
-    expect(theme.value).toBe("dark");
+    setTheme("dark");
     expect(localStorage.getItem("theme")).toBe("dark");
     expect(document.documentElement.dataset.theme).toBeUndefined();
   });
@@ -62,11 +86,11 @@ describe("useTheme", () => {
       throw new Error("blocked");
     });
 
-    const { theme, initTheme, toggleTheme } = useTheme();
+    const { theme, initTheme, setTheme } = useTheme();
 
     expect(() => initTheme()).not.toThrow();
-    expect(() => toggleTheme()).not.toThrow();
-    expect(theme.value).toBe("light");
+    expect(() => setTheme("matrix")).not.toThrow();
+    expect(theme.value).toBe("matrix");
 
     getItemSpy.mockRestore();
     setItemSpy.mockRestore();

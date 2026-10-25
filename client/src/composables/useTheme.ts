@@ -1,33 +1,39 @@
 import { ref } from "vue";
 
-export type Theme = "dark" | "light";
+export const THEMES = ["dark", "light", "matrix"] as const;
+export type Theme = (typeof THEMES)[number];
 
 const theme = ref<Theme>("dark");
 
+function isTheme(value: unknown): value is Theme {
+  return THEMES.includes(value as Theme);
+}
+
+/** Dark is the stylesheet's default, so it's the one theme without a data-theme attribute. */
 function apply(t: Theme) {
-  if (t === "light") {
-    document.documentElement.dataset.theme = "light";
-  } else {
+  if (t === "dark") {
     delete document.documentElement.dataset.theme;
+  } else {
+    document.documentElement.dataset.theme = t;
   }
 }
 
 export function initTheme() {
   try {
     const stored = localStorage.getItem("theme");
-    if (stored === "light") theme.value = "light";
+    if (isTheme(stored)) theme.value = stored;
   } catch {}
   apply(theme.value);
 }
 
-export function toggleTheme() {
-  theme.value = theme.value === "dark" ? "light" : "dark";
+export function setTheme(t: Theme) {
+  theme.value = t;
   try {
-    localStorage.setItem("theme", theme.value);
+    localStorage.setItem("theme", t);
   } catch {}
-  apply(theme.value);
+  apply(t);
 }
 
 export function useTheme() {
-  return { theme, toggleTheme, initTheme };
+  return { theme, setTheme, initTheme };
 }
