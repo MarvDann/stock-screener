@@ -3,12 +3,14 @@ import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { FmpMarketDataProvider } from "./data/fmpProvider";
 import { getQuoteName, getStockFundamentals, getTickerProfile } from "./data/yahooFinancials";
 import { getCompanyNews } from "./data/companyNews";
+import { NextEarnings, fetchNextEarnings, marketSession, upcomingEarnings } from "./data/earningsCalendar";
 import { runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { BENCHMARK_SYMBOL } from "./universe";
 import { sma } from "./indicators/movingAverage";
 import {
   BreakoutScanResponse,
+  EarningsResponse,
   MarketDataProvider,
   OverviewResponse,
   SectorStatsResponse,
@@ -71,7 +73,10 @@ app.use(
       ]);
       return { name, profile };
     },
-    onChange: () => clearCache("breakout"),
+    onChange: () => {
+      clearCache("breakout");
+      earningsCache = null;
+    },
   })
 );
 app.use(createWatchlistsRouter({ isKnownSymbol: (symbol) => symbol in chartableSecurities().names }));
@@ -256,6 +261,52 @@ app.get("/api/stocks", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("Stock lookup failed:", err);
     res.status(502).json({ error: "Failed to fetch stock data", message: (err as Error).message });
+  }
+});
+
+// Earnings dates rarely move, so they're kept longer than prices.
+const EARNINGS_TTL_MS = 60 * 60 * 1000;
+const EARNINGS_WINDOW_DAYS = 7;
+let earningsCache: { fetchedAt: number; data: Promise<{ earnings: NextEarnings[]; failed: string[] }> } | null = null;
+
+/** Every tracked ticker's next report date, shared by concurrent requests and cached for an hour. */
+function loadNextEarnings() {
+  if (!earningsCache || Date.now() - earningsCache.fetchedAt > EARNINGS_TTL_MS) {
+    const data = fetchNextEarnings(listSymbols());
+    earningsCache = { fetchedAt: Date.now(), data };
+    // Results with failures aren't kept, so the next request retries them.
+    const forget = () => {
+      if (earningsCache?.data === data) earningsCache = null;
+    };
+    data.then(({ failed }) => failed.length > 0 && forget(), forget);
+  }
+  return earningsCache.data;
+}
+
+app.get("/api/earnings", requireAuth, async (_req, res) => {
+  try {
+    const { earnings, failed } = await loadNextEarnings();
+    // From the start of today, so reports already out this morning still show.
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setDate(to.getDate() + EARNINGS_WINDOW_DAYS + 1);
+    const tickers = new Map(listTickers().map((t) => [t.symbol, t]));
+    const response: EarningsResponse = {
+      earnings: upcomingEarnings(earnings, from, to).map((e) => ({
+        symbol: e.symbol,
+        name: tickers.get(e.symbol)?.name ?? "",
+        sector: tickers.get(e.symbol)?.sector ?? null,
+        date: e.date.toISOString(),
+        session: marketSession(e.date, e.timezone),
+        estimated: e.estimated,
+      })),
+      warnings: failed.length > 0 ? [`Couldn't fetch earnings dates for ${failed.length} tickers`] : [],
+    };
+    res.json(response);
+  } catch (err) {
+    console.error("Earnings calendar failed:", err);
+    res.status(502).json({ error: "Earnings calendar failed", message: (err as Error).message });
   }
 });
 

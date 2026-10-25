@@ -203,3 +203,25 @@ export interface SectorRotationResult {
   capitalFlow: "accumulating" | "distributing" | "neutral";
   rank: number; // 1 = strongest rotation-in
 }
+
+/** When a report lands relative to its exchange's regular trading hours. */
+export type EarningsSession = "before-open" | "during-market" | "after-close";
+
+/** A tracked company's upcoming earnings report. */
+export interface EarningsEvent {
+  symbol: string;
+  name: string;
+  /** "" when the data provider has none; null until looked up. */
+  sector: string | null;
+  /** ISO timestamp. Yahoo often gives a session placeholder (8:30am or 4pm ET) rather than the exact time. */
+  date: string;
+  session: EarningsSession;
+  /** Yahoo's projection rather than a date the company has announced. */
+  estimated: boolean;
+}
+
+export interface EarningsResponse {
+  /** Today and the next 7 days, soonest first. */
+  earnings: EarningsEvent[];
+  warnings: string[];
+}

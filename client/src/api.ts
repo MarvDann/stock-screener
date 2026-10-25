@@ -1,5 +1,6 @@
 import type {
   BreakoutResponse,
+  EarningsResponse,
   EtfsResponse,
   OverviewResponse,
   SectorRotationResponse,
@@ -102,6 +103,10 @@ export function fetchStockDetail(symbol: string): Promise<StockDetail> {
 
 export function fetchStocks(symbols: string[]): Promise<StocksResponse> {
   return fetchJson<StocksResponse>(`/api/stocks?symbols=${symbols.map(encodeURIComponent).join(",")}`);
+}
+
+export function fetchEarnings(): Promise<EarningsResponse> {
+  return fetchJson<EarningsResponse>("/api/earnings");
 }
 
 export function fetchEtfs(): Promise<EtfsResponse> {

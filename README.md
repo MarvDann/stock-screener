@@ -14,6 +14,12 @@ A local web app with two screens, run on-demand against live end-of-day data:
 
 The stock universe covers ~366 S&P 500 constituents.
 
+The **Earnings** page lists the tracked companies reporting today and over
+the next 7 days, grouped by day, with each report's time (in your local time)
+and whether it lands before the open, during the session, or after the
+close. Dates come from Yahoo; ones a company hasn't confirmed yet are marked
+"Estimated".
+
 **Watchlists** let each user group stocks and ETFs into named lists and
 chart them together. Create and manage them on the Watchlists page, or use
 the Watchlists menu on any stock's page to add or remove it. Each account's

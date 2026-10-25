@@ -194,3 +194,25 @@ export interface SectorStatsResponse {
   sectors: (GroupStats & { sector: string })[];
   industries: (GroupStats & { sector: string; industry: string })[];
 }
+
+/** When a report lands relative to its exchange's regular trading hours. */
+export type EarningsSession = "before-open" | "during-market" | "after-close";
+
+/** A tracked company's upcoming earnings report. */
+export interface EarningsEvent {
+  symbol: string;
+  name: string;
+  /** "" when Yahoo has none; null until looked up. */
+  sector: string | null;
+  /** ISO timestamp. Often a session placeholder (8:30am or 4pm ET) rather than the exact time. */
+  date: string;
+  session: EarningsSession;
+  /** Yahoo's projection rather than a date the company has announced. */
+  estimated: boolean;
+}
+
+export interface EarningsResponse {
+  /** Today and the next 7 days, soonest first. */
+  earnings: EarningsEvent[];
+  warnings: string[];
+}
