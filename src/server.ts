@@ -19,6 +19,7 @@ import {
   StockDetailResponse,
   StocksResponse,
   SymbolHistory,
+  VolatilityResponse,
 } from "./types";
 import "./db";
 import authRouter from "./auth";
@@ -39,6 +40,7 @@ import { displayCurrency, toMajorUnits } from "./currency";
 import { ETF_CATEGORIES, getEtf, listEtfs } from "./etfs";
 import { createWatchlistsRouter } from "./watchlists";
 import { computeGroupStats, computeMarketOverview } from "./screens/marketOverview";
+import { VOLATILITY_INDICES, summarizeVolatility } from "./screens/volatility";
 
 const app = express();
 app.use(express.json());
@@ -307,6 +309,32 @@ app.get("/api/earnings", requireAuth, async (_req, res) => {
   } catch (err) {
     console.error("Earnings calendar failed:", err);
     res.status(502).json({ error: "Earnings calendar failed", message: (err as Error).message });
+  }
+});
+
+// Indices like ^VIX are a Yahoo symbol convention, so they come from Yahoo whatever DATA_PROVIDER is.
+const indexProvider: MarketDataProvider = provider instanceof YahooMarketDataProvider ? provider : new YahooMarketDataProvider();
+
+app.get("/api/volatility", requireAuth, async (_req, res) => {
+  try {
+    let histories = getCached("volatility");
+    if (!histories) {
+      histories = await indexProvider.getManyDailyHistories(Object.keys(VOLATILITY_INDICES), LOOKBACK_CALENDAR_DAYS);
+      // Only a complete set is kept, so a failed index is retried next time.
+      if (histories.every((h) => h.bars.length > 0)) setCache("volatility", histories);
+    }
+    if (!histories.some((h) => h.symbol === "^VIX" && h.bars.length > 0)) {
+      res.status(502).json({ error: "Volatility data unavailable", message: "VIX fetch failed" });
+      return;
+    }
+    const response: VolatilityResponse = {
+      ...summarizeVolatility(histories),
+      warnings: histories.filter((h) => h.bars.length === 0).map((h) => `Skipped ${h.symbol}: fetch failed`),
+    };
+    res.json(response);
+  } catch (err) {
+    console.error("Volatility failed:", err);
+    res.status(502).json({ error: "Volatility data unavailable", message: (err as Error).message });
   }
 });
 

@@ -13,6 +13,7 @@ import SectorDrilldownView from "../views/SectorDrilldownView.vue";
 import EtfsView from "../views/EtfsView.vue";
 import WatchlistsView from "../views/WatchlistsView.vue";
 import EarningsView from "../views/EarningsView.vue";
+import VolatilityView from "../views/VolatilityView.vue";
 import { isAuthenticated } from "../api";
 
 // `title` names a page for the stock detail page's back button.
@@ -29,6 +30,7 @@ const router = createRouter({
     { path: "/stock-charts", name: "stock-charts", component: StockChartsView, meta: { title: "Stock Charts" } },
     { path: "/etfs", name: "etfs", component: EtfsView, meta: { title: "ETFs" } },
     { path: "/watchlists", name: "watchlists", component: WatchlistsView, meta: { title: "Watchlists" } },
+    { path: "/volatility", name: "volatility", component: VolatilityView, meta: { title: "Volatility" } },
     { path: "/earnings", name: "earnings", component: EarningsView, meta: { title: "Earnings" } },
     { path: "/stock/:symbol", name: "stock-detail", component: StockDetailView },
     { path: "/sector-rotation", name: "sector-rotation", component: SectorRotationView, meta: { title: "Sector Rotation" } },

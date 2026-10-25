@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatPrice, formatRatio, formatTimeAgo } from "../format";
+import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatPrice, formatOrdinal, formatRatio, formatTimeAgo } from "../format";
 
 describe("formatPercent", () => {
   it("converts a decimal fraction to a percentage string with 2 decimal places", () => {
@@ -115,5 +115,13 @@ describe("formatTimeAgo", () => {
 
   it("shows a date once it's a week old", () => {
     expect(formatTimeAgo("2026-09-10T12:00:00Z", now)).toBe("Sep 10");
+  });
+});
+
+describe("formatOrdinal", () => {
+  it("picks st, nd, rd and th, with the teens always th", () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 100, 101, 111].map(formatOrdinal)).toEqual([
+      "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "100th", "101st", "111th",
+    ]);
   });
 });

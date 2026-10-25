@@ -216,3 +216,33 @@ export interface EarningsResponse {
   earnings: EarningsEvent[];
   warnings: string[];
 }
+
+export type VolatilityRegime = "calm" | "normal" | "elevated" | "high";
+
+export interface DatedValue {
+  /** YYYY-MM-DD */
+  date: string;
+  value: number;
+}
+
+export interface LatestMove {
+  close: number;
+  /** Point change from the previous close; null with only one bar. */
+  change: number | null;
+  changePct: number | null;
+}
+
+/** The VIX family of indices: latest readings plus a year of daily closes. */
+export interface VolatilityResponse {
+  /** Latest VIX session, YYYY-MM-DD. */
+  asOf: string | null;
+  vix: (LatestMove & { high52w: number; low52w: number; percentile1y: number; regime: VolatilityRegime }) | null;
+  vvix: LatestMove | null;
+  /** VIX ÷ VIX 3-month on the latest day both have. Above 1 the curve is inverted (backwardation). */
+  termRatio: number | null;
+  /** Daily closes per index, oldest first, keyed by Yahoo symbol (^VIX, ^VIX9D, ^VIX3M, ^VVIX). */
+  series: { symbol: string; name: string; points: DatedValue[] }[];
+  /** VIX ÷ VIX 3-month for each day both have, oldest first. */
+  termRatioSeries: DatedValue[];
+  warnings: string[];
+}

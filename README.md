@@ -20,6 +20,12 @@ and whether it lands before the open, during the session, or after the
 close. Dates come from Yahoo; ones a company hasn't confirmed yet are marked
 "Estimated".
 
+The **Volatility** page tracks the VIX alongside its 9-day and 3-month
+siblings and the VVIX: today's level and how it compares with the past year,
+whether the volatility curve is inverted (VIX above VIX 3-month, typical of
+sell-offs), and line charts over 1 month to 1 year. These indices always come
+from Yahoo, whichever `DATA_PROVIDER` is set.
+
 **Watchlists** let each user group stocks and ETFs into named lists and
 chart them together. Create and manage them on the Watchlists page, or use
 the Watchlists menu on any stock's page to add or remove it. Each account's

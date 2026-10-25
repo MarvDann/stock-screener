@@ -35,6 +35,7 @@ function logout() {
       <RouterLink to="/etfs" class="nav-link">ETFs</RouterLink>
       <RouterLink to="/watchlists" class="nav-link">Watchlists</RouterLink>
       <RouterLink to="/earnings" class="nav-link">Earnings</RouterLink>
+      <RouterLink to="/volatility" class="nav-link">Volatility</RouterLink>
       <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
       <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
       <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>

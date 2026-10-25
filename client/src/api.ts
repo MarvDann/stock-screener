@@ -8,6 +8,7 @@ import type {
   StockDetail,
   StocksResponse,
   Ticker,
+  VolatilityResponse,
   Watchlist,
 } from "./types";
 import router from "./router";
@@ -107,6 +108,10 @@ export function fetchStocks(symbols: string[]): Promise<StocksResponse> {
 
 export function fetchEarnings(): Promise<EarningsResponse> {
   return fetchJson<EarningsResponse>("/api/earnings");
+}
+
+export function fetchVolatility(): Promise<VolatilityResponse> {
+  return fetchJson<VolatilityResponse>("/api/volatility");
 }
 
 export function fetchEtfs(): Promise<EtfsResponse> {

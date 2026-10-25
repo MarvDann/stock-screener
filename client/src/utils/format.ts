@@ -61,3 +61,10 @@ export function formatTimeAgo(iso: string, now = Date.now()): string {
   if (days < 7) return `${days}d ago`;
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+
+/** An English ordinal, e.g. 1 → "1st", 22 → "22nd", 13 → "13th". */
+export function formatOrdinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
+}

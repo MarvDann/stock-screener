@@ -2,7 +2,8 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ColorType, createChart, LineStyle, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
-import { useTheme, type Theme } from "../composables/useTheme";
+import { useTheme } from "../composables/useTheme";
+import { CHART_THEMES } from "../utils/chartTheme";
 
 const props = withDefaults(
   defineProps<{ bars: DailyBar[]; sma50Series: number[]; sma150Series: number[]; height?: number }>(),
@@ -17,26 +18,6 @@ let sma150Series: ISeriesApi<"Line"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-const STANDARD_CANDLES = {
-  up: "#17c964",
-  down: "#f5384e",
-  volumeUp: "rgba(23, 201, 100, 0.5)",
-  volumeDown: "rgba(245, 56, 78, 0.5)",
-};
-
-const chartColors: Record<Theme, { text: string; grid: string; up: string; down: string; volumeUp: string; volumeDown: string }> = {
-  dark: { text: "#8b8fa3", grid: "rgba(91, 95, 114, 0.12)", ...STANDARD_CANDLES },
-  light: { text: "#5c6070", grid: "rgba(91, 95, 114, 0.18)", ...STANDARD_CANDLES },
-  matrix: {
-    text: "#3fbf63",
-    grid: "rgba(0, 255, 65, 0.08)",
-    up: "#00ff41",
-    down: "#ff4d5e",
-    volumeUp: "rgba(0, 255, 65, 0.4)",
-    volumeDown: "rgba(255, 77, 94, 0.45)",
-  },
-};
-
 function render() {
   if (!container.value) return;
   if (chart) {
@@ -44,7 +25,7 @@ function render() {
     chart = null;
   }
 
-  const colors = chartColors[theme.value];
+  const colors = CHART_THEMES[theme.value];
   chart = createChart(container.value, {
     width: container.value.clientWidth,
     height: props.height,

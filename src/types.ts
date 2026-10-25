@@ -1,4 +1,5 @@
 import type { Breadth, GroupStats, Mover } from "./screens/marketOverview";
+import type { VolatilitySummary } from "./screens/volatility";
 
 /**
  * A single day's OHLCV bar.
@@ -223,5 +224,10 @@ export interface EarningsEvent {
 export interface EarningsResponse {
   /** Today and the next 7 days, soonest first. */
   earnings: EarningsEvent[];
+  warnings: string[];
+}
+
+/** The VIX family of indices, for the volatility page. */
+export interface VolatilityResponse extends VolatilitySummary {
   warnings: string[];
 }
