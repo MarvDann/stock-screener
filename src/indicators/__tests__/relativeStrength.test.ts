@@ -4,6 +4,9 @@ import {
   moneyFlowScore,
   classifyMoneyFlow,
   classifyCapitalFlow,
+  isRsLineAtNewHigh,
+  rsLine,
+  rsRatings,
 } from "../relativeStrength";
 import { makeBar } from "../../__tests__/helpers";
 
@@ -100,5 +103,36 @@ describe("classifyCapitalFlow", () => {
 
   it("returns neutral when money flow is neutral", () => {
     expect(classifyCapitalFlow(5, "neutral")).toBe("neutral");
+  });
+});
+
+describe("rsRatings", () => {
+  /** A year and a bit of bars rising linearly by `gain` overall. */
+  const rising = (symbol: string, gain: number) => ({
+    symbol,
+    bars: Array.from({ length: 260 }, (_, i) => makeBar({ close: 100 * (1 + (gain * i) / 259) })),
+  });
+
+  it("ranks weighted performance into 1–99 percentiles", () => {
+    const ratings = rsRatings([rising("A", 0.1), rising("B", 1), rising("C", 0.5)]);
+    expect(Object.fromEntries(ratings)).toEqual({ A: 1, C: 50, B: 99 });
+  });
+
+  it("leaves symbols without a year of history unrated", () => {
+    const ratings = rsRatings([rising("A", 0.1), rising("B", 1), { symbol: "NEW", bars: rising("NEW", 1).bars.slice(-100) }]);
+    expect(ratings.has("NEW")).toBe(false);
+  });
+});
+
+describe("isRsLineAtNewHigh", () => {
+  it("is true only when today's value is the highest of the period", () => {
+    expect(isRsLineAtNewHigh([1, 2, 3])).toBe(true);
+    expect(isRsLineAtNewHigh([1, 3, 2])).toBe(false);
+    expect(isRsLineAtNewHigh([5, 1, 2], 2)).toBe(true);
+  });
+
+  it("lines up the benchmark by date", () => {
+    const day = (d: number, close: number) => makeBar({ date: new Date(2024, 0, d), close });
+    expect(rsLine([day(1, 10), day(2, 20)], [day(2, 4)])).toEqual([NaN, 5]);
   });
 });

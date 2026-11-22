@@ -4,10 +4,11 @@ import { FmpMarketDataProvider } from "./data/fmpProvider";
 import { getQuoteName, getStockFundamentals, getTickerProfile } from "./data/yahooFinancials";
 import { getCompanyNews } from "./data/companyNews";
 import { NextEarnings, fetchNextEarnings, marketSession, upcomingEarnings } from "./data/earningsCalendar";
-import { runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
+import { BreakoutContext, runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "./screens/breakoutScreen";
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { BENCHMARK_SYMBOL } from "./universe";
 import { sma } from "./indicators/movingAverage";
+import { rsRatings } from "./indicators/relativeStrength";
 import {
   BreakoutScanResponse,
   EarningsResponse,
@@ -45,7 +46,8 @@ import { VOLATILITY_INDICES, summarizeVolatility } from "./screens/volatility";
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
-const LOOKBACK_CALENDAR_DAYS = 400; // covers 200+ trading days with margin for weekends/holidays
+// ~375 trading days: a year for the 52-week checks and RS Rating, plus room for 65-week bases.
+const LOOKBACK_CALENDAR_DAYS = 550;
 const CHART_BARS = 120;
 const DETAIL_CHART_BARS = 252;
 const DETAIL_LOOKBACK_DAYS = 550;
@@ -117,12 +119,47 @@ async function loadScanHistories(): Promise<SymbolHistory[]> {
   return scanInFlight;
 }
 
+/** SPY's history from the cache, else fetched; empty bars if the fetch fails. */
+async function loadBenchmark(): Promise<SymbolHistory> {
+  const cached = getCached("benchmark")?.[0];
+  if (cached) return cached;
+  const benchmark = await provider
+    .getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS)
+    .catch((): SymbolHistory => ({ symbol: BENCHMARK_SYMBOL, bars: [] }));
+  if (benchmark.bars.length > 0) setCache("benchmark", [benchmark]);
+  return benchmark;
+}
+
+// RS Ratings rank the whole scan, so they're computed once per cached scan.
+const ratingsByScan = new WeakMap<SymbolHistory[], Map<string, number>>();
+function scanRsRatings(histories: SymbolHistory[]): Map<string, number> {
+  let ratings = ratingsByScan.get(histories);
+  if (!ratings) {
+    ratings = rsRatings(histories);
+    ratingsByScan.set(histories, ratings);
+  }
+  return ratings;
+}
+
+/**
+ * RS inputs for screening individual symbols. RS Ratings come from the
+ * cached scan, so they're null (and skipped) when the scan isn't warm.
+ */
+async function loadBreakoutContext(): Promise<(symbol: string) => BreakoutContext> {
+  const scan = getCached("breakout");
+  const benchmark = await loadBenchmark();
+  const ratings = scan ? scanRsRatings(scan) : new Map<string, number>();
+  const benchmarkBars = benchmark.bars.length > 0 ? benchmark.bars : undefined;
+  return (symbol) => ({ rsRating: ratings.get(symbol) ?? null, benchmarkBars });
+}
+
 /** Scan histories in major units (pence → pounds), plus warnings for any that failed to fetch. */
 async function loadScan() {
-  const histories = await loadScanHistories();
+  const [histories, benchmark] = await Promise.all([loadScanHistories(), loadBenchmark()]);
   const currencies = getCurrencyMap();
   return {
     currencies,
+    benchmarkBars: benchmark.bars.length > 0 ? benchmark.bars : undefined,
     warnings: histories.filter((h) => h.bars.length === 0).map((h) => `Skipped ${h.symbol}: fetch failed`),
     histories: histories.filter((h) => h.bars.length > 0).map((h) => toMajorUnits(h, currencies[h.symbol] ?? null)),
   };
@@ -134,8 +171,8 @@ const withCurrency =
 
 app.get("/api/breakout", requireAuth, async (_req, res) => {
   try {
-    const { histories, currencies, warnings } = await loadScan();
-    const { triggered, approaching } = scanBreakoutScreen(histories, DEFAULT_BREAKOUT_CONFIG, getNameMap());
+    const { histories, currencies, warnings, benchmarkBars } = await loadScan();
+    const { triggered, approaching } = scanBreakoutScreen(histories, DEFAULT_BREAKOUT_CONFIG, getNameMap(), benchmarkBars);
     const response: BreakoutScanResponse = {
       triggered: triggered.map(withCurrency(currencies)),
       approaching: approaching.map(withCurrency(currencies)),
@@ -152,10 +189,10 @@ const OVERVIEW_TOP_BREAKOUTS = 5;
 
 app.get("/api/overview", requireAuth, async (_req, res) => {
   try {
-    const { histories, currencies, warnings } = await loadScan();
+    const { histories, currencies, warnings, benchmarkBars } = await loadScan();
     const names = getNameMap();
     const overview = computeMarketOverview(histories, names);
-    const { triggered, approaching } = scanBreakoutScreen(histories, DEFAULT_BREAKOUT_CONFIG, names);
+    const { triggered, approaching } = scanBreakoutScreen(histories, DEFAULT_BREAKOUT_CONFIG, names, benchmarkBars);
     const response: OverviewResponse = {
       ...overview,
       gainers: overview.gainers.map(withCurrency(currencies)),
@@ -242,6 +279,7 @@ app.get("/api/stocks", requireAuth, async (req, res) => {
       }
     }
 
+    const contextFor = await loadBreakoutContext();
     const stocks: StockCard[] = [];
     const warnings: string[] = [];
     for (const symbol of symbols) {
@@ -251,7 +289,7 @@ app.get("/api/stocks", requireAuth, async (req, res) => {
         continue;
       }
       const history = toMajorUnits(raw, currencies[symbol] ?? null);
-      const result = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, names[symbol]);
+      const result = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, names[symbol], contextFor(symbol));
       stocks.push({
         symbol,
         name: names[symbol],
@@ -400,7 +438,8 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
     const currency = getTickerCurrency(symbol) ?? etf?.currency ?? null;
     const history = toMajorUnits(raw, currency);
     const visibleCount = Math.min(history.bars.length, DETAIL_CHART_BARS);
-    const screenResult = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, name);
+    const contextFor = await loadBreakoutContext();
+    const screenResult = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, name, contextFor(symbol));
     const [fundamentals, news] = await Promise.all([
       getStockFundamentals(symbol).catch((err) => {
         console.error(`Fundamentals fetch failed for ${symbol}:`, err.message);

@@ -6,7 +6,15 @@ import type { StockDetail } from "../types";
 import PriceChart from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
 import WatchlistMenu from "../components/WatchlistMenu.vue";
-import { formatAbbreviatedCurrency, formatPercent, formatPrice, formatRatio, formatTimeAgo } from "../utils/format";
+import {
+  formatAbbreviatedCurrency,
+  formatContractions,
+  formatPattern,
+  formatPercent,
+  formatPrice,
+  formatRatio,
+  formatTimeAgo,
+} from "../utils/format";
 
 const route = useRoute();
 const router = useRouter();
@@ -132,18 +140,42 @@ onMounted(load);
             <span class="stat-value">{{ formatPrice(data.details.sma50, data.currency) }}</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">% vs 50-SMA</span>
-            <span class="stat-value" :class="data.details.pctBelowSma50 > 0 ? 'neg' : 'pos'">
-              {{ formatNumber(data.details.pctBelowSma50) }}%
+            <span class="stat-label">Pattern</span>
+            <span class="stat-value">{{ formatPattern(data.details.pattern) }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Pivot</span>
+            <span class="stat-value">{{ formatPrice(data.details.pivot, data.currency) }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">% vs Pivot</span>
+            <span class="stat-value" :class="data.details.pctFromPivot < 0 ? 'neg' : 'pos'">
+              {{ formatNumber(data.details.pctFromPivot) }}%
             </span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Base</span>
+            <span class="stat-value">
+              {{ formatNumber(data.details.baseDepthPct, 0) }}% deep · {{ data.details.baseLengthWeeks }} wks
+            </span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Contractions</span>
+            <span class="stat-value">{{ formatContractions(data.details.contractions) }}</span>
           </div>
           <div class="stat-card">
             <span class="stat-label">Volume Ratio</span>
             <span class="stat-value">{{ formatNumber(data.details.volumeRatio, 1) }}x</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Range Contraction</span>
-            <span class="stat-value">{{ formatNumber(data.details.rangeContractionPct, 1) }}%</span>
+            <span class="stat-label">RS Rating</span>
+            <span class="stat-value">{{ data.details.rsRating ?? "—" }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">RS Line</span>
+            <span class="stat-value" :class="{ pos: data.details.rsLineNewHigh }">
+              {{ data.details.rsLineNewHigh == null ? "—" : data.details.rsLineNewHigh ? "New high" : "Below high" }}
+            </span>
           </div>
         </template>
         <div v-if="data.financials" class="stat-card">

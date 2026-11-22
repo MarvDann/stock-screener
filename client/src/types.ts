@@ -7,18 +7,40 @@ export interface DailyBar {
   volume: number;
 }
 
+/** The kind of base a breakout comes out of. */
+export type BasePattern = "flat-base" | "heartbeat" | "cup-handle" | "low-cheat";
+
+export interface BreakoutDetails {
+  close: number;
+  sma50: number;
+  pattern: BasePattern;
+  /** High of the base's final contraction — the buy point. */
+  pivot: number;
+  /** % from the pivot; negative while below it. */
+  pctFromPivot: number;
+  baseDepthPct: number;
+  baseLengthWeeks: number;
+  /** Depth of each contraction in %, oldest first. */
+  contractions: number[];
+  /** Volume vs its 50-day average, on the breakout day once triggered, else today. */
+  volumeRatio: number;
+  /** Breakout-day volume at least 40% above average. */
+  volumeConfirmed: boolean;
+  /** More than 5% above the pivot — past the buy range. */
+  extended: boolean;
+  /** Trading days since crossing the pivot (0 = today); null while approaching. */
+  daysSinceBreakout: number | null;
+  /** RS Rating (1–99) against the tracked universe; null when it couldn't be ranked. */
+  rsRating: number | null;
+  /** RS line vs SPY at a 52-week high; null without benchmark data. */
+  rsLineNewHigh: boolean | null;
+}
+
 export interface BreakoutCandidate {
   symbol: string;
   name: string;
   state: "triggered" | "approaching";
-  details: {
-    close: number;
-    sma50: number;
-    pctBelowSma50: number;
-    rangeContractionPct: number;
-    volumeRatio: number;
-    daysSinceCross: number | null;
-  };
+  details: BreakoutDetails;
   /** ISO currency prices are in (pence already converted to pounds); null if not known yet. */
   currency: string | null;
 }
@@ -89,14 +111,7 @@ export interface StockDetail {
   bars: DailyBar[];
   sma50Series: number[];
   sma150Series: number[];
-  details: {
-    close: number;
-    sma50: number;
-    pctBelowSma50: number;
-    rangeContractionPct: number;
-    volumeRatio: number;
-    daysSinceCross: number | null;
-  } | null;
+  details: BreakoutDetails | null;
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];

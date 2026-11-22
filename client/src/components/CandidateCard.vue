@@ -2,7 +2,7 @@
 import { useRouter } from "vue-router";
 import { computed } from "vue";
 import type { StockCard } from "../types";
-import { formatPrice } from "../utils/format";
+import { formatContractions, formatPattern, formatPrice } from "../utils/format";
 import PriceChart from "./PriceChart.vue";
 
 const router = useRouter();
@@ -32,12 +32,14 @@ function summary(c: StockCard): string {
     const pct = ((close.value - sma50) / sma50) * 100;
     return `${Math.abs(pct).toFixed(1)}% ${pct >= 0 ? "above" : "below"} 50-day SMA`;
   }
+  const d = c.details;
+  const base = `${formatPattern(d.pattern)} · ${formatContractions(d.contractions)}`;
   if (c.state === "triggered") {
-    const days = c.details.daysSinceCross;
-    const dayLabel = days === 0 ? "today" : `${days} day(s) ago`;
-    return `${c.details.volumeRatio.toFixed(1)}x volume · crossed MA50 ${dayLabel} · ${c.details.rangeContractionPct.toFixed(1)}% range`;
+    const dayLabel = d.daysSinceBreakout === 0 ? "today" : `${d.daysSinceBreakout} day(s) ago`;
+    const flags = [d.volumeConfirmed ? "" : "light volume", d.extended ? "extended" : ""].filter(Boolean);
+    return [base, `crossed pivot ${dayLabel}`, `${d.volumeRatio.toFixed(1)}x volume`, ...flags].join(" · ");
   }
-  return `${c.details.pctBelowSma50.toFixed(1)}% below 50-day SMA · ${c.details.rangeContractionPct.toFixed(1)}% range`;
+  return `${base} · ${Math.abs(d.pctFromPivot).toFixed(1)}% below ${formatPrice(d.pivot, c.currency)} pivot`;
 }
 </script>
 

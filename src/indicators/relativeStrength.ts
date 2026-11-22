@@ -63,3 +63,61 @@ export function classifyMoneyFlow(score: number): "accumulation" | "distribution
   if (score < -0.05) return "distribution";
   return "neutral";
 }
+
+/** Trading-day offsets and weights for IBD's RS Rating: the latest quarter counts double. */
+const RS_RATING_WEIGHTS: [bars: number, weight: number][] = [
+  [63, 0.4],
+  [126, 0.2],
+  [189, 0.2],
+  [252, 0.2],
+];
+
+/** Weighted 12-month price performance used to rank RS Ratings, or NaN without a year of history. */
+export function rsRatingScore(bars: DailyBar[], endIndex = bars.length - 1): number {
+  const close = bars[endIndex]?.close;
+  let score = 0;
+  for (const [offset, weight] of RS_RATING_WEIGHTS) {
+    const past = bars[endIndex - offset]?.close;
+    if (!past || !close) return NaN;
+    score += weight * (close / past);
+  }
+  return score;
+}
+
+/**
+ * IBD/MarketSurge-style RS Rating: each symbol's weighted 12-month
+ * performance as a percentile (1–99) of the others'. Symbols without a
+ * year of history get no rating.
+ */
+export function rsRatings(histories: { symbol: string; bars: DailyBar[] }[]): Map<string, number> {
+  const scored = histories
+    .map((h) => ({ symbol: h.symbol, score: rsRatingScore(h.bars) }))
+    .filter((s) => !isNaN(s.score))
+    .sort((a, b) => a.score - b.score);
+  const ratings = new Map<string, number>();
+  if (scored.length < 2) return ratings;
+  scored.forEach((s, rank) => ratings.set(s.symbol, Math.round(1 + (98 * rank) / (scored.length - 1))));
+  return ratings;
+}
+
+/**
+ * The RS line — close divided by the benchmark's close on the same date —
+ * for each of `symbolBars`. NaN where the benchmark has no bar that day.
+ */
+export function rsLine(symbolBars: DailyBar[], benchmarkBars: DailyBar[]): number[] {
+  const benchmarkByDate = new Map(benchmarkBars.map((b) => [new Date(b.date).toDateString(), b.close]));
+  return symbolBars.map((bar) => {
+    const benchmarkClose = benchmarkByDate.get(new Date(bar.date).toDateString());
+    return benchmarkClose ? bar.close / benchmarkClose : NaN;
+  });
+}
+
+/** True when the RS line closes at its highest level of the trailing `period` bars — MarketSurge's "blue dot". */
+export function isRsLineAtNewHigh(line: number[], period = 252, endIndex = line.length - 1): boolean {
+  const today = line[endIndex];
+  if (isNaN(today)) return false;
+  for (let i = Math.max(0, endIndex - period + 1); i < endIndex; i++) {
+    if (line[i] > today) return false;
+  }
+  return true;
+}

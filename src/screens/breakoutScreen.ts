@@ -1,77 +1,107 @@
-import { BreakoutScreenResult, SymbolHistory } from "../types";
-import { highestHigh, sma } from "../indicators/movingAverage";
-import { isVolatilityContracting, rangeContractionPct, volumeRatio } from "../indicators/volatility";
+import { BasePattern, BreakoutScreenResult, DailyBar, SymbolHistory } from "../types";
+import { lowestLow, sma } from "../indicators/movingAverage";
+import { averageVolume, volumeRatio } from "../indicators/volatility";
+import { Contraction, findContractions } from "../indicators/swings";
+import { isRsLineAtNewHigh, rsLine, rsRatings } from "../indicators/relativeStrength";
+import { DEFAULT_TREND_TEMPLATE_CONFIG, TrendTemplateConfig, passesTrendTemplate } from "./trendTemplate";
 
-/** SMA period the breakout trigger and "approaching" state are measured against. */
-const TRIGGER_SMA_PERIOD = 50;
+/** SMA period the heartbeat chops across. */
+const HEARTBEAT_SMA_PERIOD = 50;
 
 export interface BreakoutScreenConfig {
-  /** Bars in the "tight" consolidation window used by the heartbeat check. Default 30 trading days. */
-  consolidationPeriod: number;
-  /** Prior window compared against to confirm contraction. Default 40 trading days. */
-  priorPeriod: number;
-  /** Max ratio of the consolidation range to the prior window's range. Default 1 (no wider than before). */
-  maxContractionRatio: number;
-  /** Max width of the consolidation range, as a percent of its low. Default 10. */
-  maxRangePct: number;
-  /** Min times the close crosses the 50-day SMA (either way) during the consolidation — the "heartbeat". Default 3. */
+  /** Longest base considered, in bars. Minervini: up to 65 weeks. Default 325. */
+  maxBaseBars: number;
+  /** Shortest flat base (and heartbeat), in bars. Minervini: at least 5 weeks. Default 25. */
+  minFlatBaseBars: number;
+  /** Deepest a flat base (and heartbeat) may correct, in %. Default 15. */
+  maxFlatBaseDepthPct: number;
+  /** Shortest cup, in bars. Minervini: at least 7 weeks. Default 35. */
+  minCupBars: number;
+  /** Deepest a cup may correct, in %. Minervini: ideally no more than 35. Default 35. */
+  maxCupDepthPct: number;
+  /** Deepest a handle may pull back, in %. Default 12. */
+  maxHandleDepthPct: number;
+  /** A cup's pause is a handle when its high is within this % of the left-side high; lower, it's a low cheat. Default 5. */
+  maxHandleBelowHighPct: number;
+  /** Min advance into the base's left-side high, in %. Minervini: at least 25–30. Default 25. */
+  minPriorAdvancePct: number;
+  /** Bars before the base searched for the low the prior advance is measured from. Default 126 (6 months). */
+  priorAdvanceLookback: number;
+  /** Reversal, in %, that confirms a swing high or low when counting contractions. Default 3. */
+  swingThresholdPct: number;
+  /** Most contractions a VCP may have. Minervini: 2 to 6. Default 6. */
+  maxContractions: number;
+  /** Deepest the final contraction may be, in % — volatility must be tight at the pivot. Default 10. */
+  maxFinalContractionPct: number;
+  /** Fewest bars the final contraction must span, so a stock still running up isn't "tight". Default 5. */
+  minFinalContractionBars: number;
+  /** Max ratio of the final contraction's average volume to the 50 days before it — volume must dry up. Default 1. */
+  maxFinalVolumeRatio: number;
+  /** Min times the close crosses the 50-day SMA during a flat base for it to be a heartbeat. Default 3. */
   minSmaCrosses: number;
-  /** Max % the 50-day SMA may move (up or down) across the consolidation, so the chop is horizontal. Default 4. */
+  /** Max % the 50-day SMA may drift across a heartbeat, so the chop is horizontal. Default 4. */
   maxSma50DriftPct: number;
-  /** Max distance below the 50-day SMA, as a percent, to count as "approaching". Default 5. */
+  /** Max distance below the pivot, in %, to count as "approaching". Default 5. */
   approachingThresholdPct: number;
-  /** Minimum volume multiple vs average for a cross to count as a confirmed trigger. Default 2x. */
-  minTriggerVolumeRatio: number;
-  /** Lookback for the average-volume baseline used by the trigger's volume check. Default 20 trading days. */
+  /** Breakout-day volume vs average for a volume-confirmed breakout. Minervini: 40–50% above average. Default 1.4. */
+  minBreakoutVolumeRatio: number;
+  /** Bars in the average-volume baseline. Default 50. */
   volumeAvgPeriod: number;
-  /** How many trailing trading days (including today) to look back for the MA50 cross. Default 3. */
-  crossLookbackDays: number;
+  /** Max % above the pivot before a breakout is extended past the buy range. Minervini: 5. Default 5. */
+  maxBuyRangePct: number;
+  /** Trailing trading days (including today) searched for the pivot cross. Default 3. */
+  breakoutLookbackDays: number;
+  trendTemplate: TrendTemplateConfig;
 }
 
 export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
-  consolidationPeriod: 30,
-  priorPeriod: 40,
-  maxContractionRatio: 1,
-  maxRangePct: 10,
+  maxBaseBars: 325,
+  minFlatBaseBars: 25,
+  maxFlatBaseDepthPct: 15,
+  minCupBars: 35,
+  maxCupDepthPct: 35,
+  maxHandleDepthPct: 12,
+  maxHandleBelowHighPct: 5,
+  minPriorAdvancePct: 25,
+  priorAdvanceLookback: 126,
+  swingThresholdPct: 3,
+  maxContractions: 6,
+  maxFinalContractionPct: 10,
+  minFinalContractionBars: 5,
+  maxFinalVolumeRatio: 1,
   minSmaCrosses: 3,
   maxSma50DriftPct: 4,
   approachingThresholdPct: 5,
-  minTriggerVolumeRatio: 2,
-  volumeAvgPeriod: 20,
-  crossLookbackDays: 3,
+  minBreakoutVolumeRatio: 1.4,
+  volumeAvgPeriod: 50,
+  maxBuyRangePct: 5,
+  breakoutLookbackDays: 3,
+  trendTemplate: DEFAULT_TREND_TEMPLATE_CONFIG,
 };
 
-/**
- * Finds the most recent trading day, within the last `lookbackDays` days
- * (inclusive of `endIndex`), on which the close crossed from at-or-below
- * the 50-day SMA to above it. Returns null if price isn't above the SMA
- * today, or no such crossing occurred in the window.
- */
-function findCrossDayIndex(
-  bars: SymbolHistory["bars"],
-  endIndex: number,
-  lookbackDays: number
-): number | null {
-  const todaySma = sma(bars, TRIGGER_SMA_PERIOD, endIndex);
-  if (isNaN(todaySma) || bars[endIndex].close <= todaySma) return null;
-
-  for (let d = endIndex; d > endIndex - lookbackDays && d - 1 >= 0; d--) {
-    const smaAtD = sma(bars, TRIGGER_SMA_PERIOD, d);
-    const smaAtPrev = sma(bars, TRIGGER_SMA_PERIOD, d - 1);
-    if (isNaN(smaAtD) || isNaN(smaAtPrev)) continue;
-    if (bars[d].close > smaAtD && bars[d - 1].close <= smaAtPrev) {
-      return d;
-    }
-  }
-  return null;
+/** Relative-strength inputs that come from outside one symbol's own history. */
+export interface BreakoutContext {
+  /** RS Rating (1–99) against the scanned universe; null skips the Trend Template's RS check. */
+  rsRating?: number | null;
+  /** Benchmark (SPY) bars, for the RS line. */
+  benchmarkBars?: DailyBar[];
 }
 
-/** Times the close crossed the 50-day SMA (either direction) within the `period` bars ending at `endIndex`. */
-function countSmaCrosses(bars: SymbolHistory["bars"], period: number, endIndex: number): number {
+export interface Base {
+  pattern: BasePattern;
+  pivot: number;
+  startIndex: number;
+  lengthBars: number;
+  depthPct: number;
+  contractions: Contraction[];
+}
+
+/** Times the close crossed the 50-day SMA (either direction) between `start` and `end`. */
+function countSmaCrosses(bars: DailyBar[], start: number, end: number): number {
   let crosses = 0;
   let wasAbove: boolean | null = null;
-  for (let i = endIndex - period + 1; i <= endIndex; i++) {
-    const smaAtI = sma(bars, TRIGGER_SMA_PERIOD, i);
+  for (let i = start; i <= end; i++) {
+    const smaAtI = sma(bars, HEARTBEAT_SMA_PERIOD, i);
     if (isNaN(smaAtI)) continue;
     const isAbove = bars[i].close > smaAtI;
     if (wasAbove !== null && isAbove !== wasAbove) crosses++;
@@ -80,119 +110,171 @@ function countSmaCrosses(bars: SymbolHistory["bars"], period: number, endIndex: 
   return crosses;
 }
 
-/**
- * True when the consolidation window ending at `endIndex` is a "heartbeat":
- * horizontal chop back and forth across a flat 50-day SMA, in a range that's
- * narrow and no wider than the prior window. A stock that trended up and has
- * just dipped through its SMA crosses it once, against a rising SMA, so fails.
- */
-function isHeartbeatConsolidation(
-  bars: SymbolHistory["bars"],
-  config: BreakoutScreenConfig,
-  endIndex: number
-): boolean {
-  const smaNow = sma(bars, TRIGGER_SMA_PERIOD, endIndex);
-  const smaAtStart = sma(bars, TRIGGER_SMA_PERIOD, endIndex - config.consolidationPeriod + 1);
-  const smaDriftPct = Math.abs((smaNow - smaAtStart) / smaAtStart) * 100;
-  return (
-    smaDriftPct <= config.maxSma50DriftPct &&
-    countSmaCrosses(bars, config.consolidationPeriod, endIndex) >= config.minSmaCrosses &&
-    rangeContractionPct(bars, config.consolidationPeriod, endIndex) <= config.maxRangePct &&
-    isVolatilityContracting(bars, config.consolidationPeriod, config.priorPeriod, endIndex, config.maxContractionRatio)
-  );
+/** A flat base that chops back and forth across a flat 50-day SMA. */
+function isHeartbeat(bars: DailyBar[], config: BreakoutScreenConfig, start: number, end: number): boolean {
+  const smaNow = sma(bars, HEARTBEAT_SMA_PERIOD, end);
+  const smaAtStart = sma(bars, HEARTBEAT_SMA_PERIOD, start);
+  if (isNaN(smaNow) || isNaN(smaAtStart)) return false;
+  const driftPct = Math.abs((smaNow - smaAtStart) / smaAtStart) * 100;
+  return driftPct <= config.maxSma50DriftPct && countSmaCrosses(bars, start, end) >= config.minSmaCrosses;
+}
+
+/** 2–6 contractions. Each sits inside the one before, so they're already progressively shallower. */
+function isProgressive(contractions: Contraction[], config: BreakoutScreenConfig): boolean {
+  return contractions.length >= 2 && contractions.length <= config.maxContractions;
 }
 
 /**
- * Runs the breakout screen against one symbol's history using the
- * 50-day SMA cross definition. Requires at least 50 bars to compute the
- * SMA at all; returns null below that (naturally means "no state" once
- * enough bars exist and none of the conditions hold, too).
+ * Finds the base the stock is in as of `end`, or null if it isn't in one
+ * that meets Minervini's rules. The base runs from its left-side high (the
+ * highest high of the last `maxBaseBars`) to `end`; the pivot is the high of
+ * the final contraction, which must be tight, on drying-up volume.
+ *
+ * - Flat base: at least 5 weeks, no deeper than 15%, contracting.
+ * - Heartbeat: a flat base whose closes chop across a flat 50-day SMA.
+ * - Cup: at least 7 weeks, no deeper than 35%, contracting. A pause that
+ *   forms once the right side is back near the left-side high is a handle
+ *   ("cup-handle", in the upper half, no deeper than 12%); a pause anywhere
+ *   below that — lower, middle or upper third — is a "low-cheat".
  */
-export function runBreakoutScreen(
-  history: SymbolHistory,
-  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG,
-  name = ""
-): BreakoutScreenResult | null {
-  const { bars, symbol } = history;
-  const endIndex = bars.length - 1;
-  const sma50 = sma(bars, TRIGGER_SMA_PERIOD, endIndex);
-  if (isNaN(sma50)) return null;
+export function findBase(bars: DailyBar[], config: BreakoutScreenConfig, end: number): Base | null {
+  let start = Math.max(0, end - config.maxBaseBars + 1);
+  for (let i = start + 1; i <= end; i++) if (bars[i].high > bars[start].high) start = i;
+  const lengthBars = end - start + 1;
+  if (start === 0 || lengthBars < config.minFlatBaseBars) return null;
 
-  const close = bars[endIndex].close;
-  const pctBelowSma50 = ((sma50 - close) / sma50) * 100;
+  const leftHigh = bars[start].high;
+  const priorLow = lowestLow(bars, config.priorAdvanceLookback, start - 1);
+  if ((leftHigh / priorLow - 1) * 100 < config.minPriorAdvancePct) return null;
 
-  const crossDayIndex = findCrossDayIndex(bars, endIndex, config.crossLookbackDays);
-  if (crossDayIndex !== null) {
-    const heartbeatAnchor = crossDayIndex - 1;
-    const isConsolidating = isHeartbeatConsolidation(bars, config, heartbeatAnchor);
-    // The close must clear the top of the consolidation, not just the SMA — a cross that's still inside the range isn't a breakout.
-    const consolidationHigh = highestHigh(bars, config.consolidationPeriod, heartbeatAnchor);
-    const volRatio = volumeRatio(bars, config.volumeAvgPeriod, endIndex);
+  const baseLow = lowestLow(bars, lengthBars, end);
+  const depthPct = ((leftHigh - baseLow) / leftHigh) * 100;
 
-    if (isConsolidating && close > consolidationHigh && volRatio >= config.minTriggerVolumeRatio) {
-      return {
-        symbol,
-        name,
-        state: "triggered",
-        details: {
-          close,
-          sma50,
-          pctBelowSma50,
-          rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, heartbeatAnchor),
-          volumeRatio: volRatio,
-          daysSinceCross: endIndex - crossDayIndex,
-        },
-      };
-    }
+  const contractions = findContractions(bars, start, end, config.swingThresholdPct, config.minFinalContractionBars);
+  const final = contractions[contractions.length - 1];
+  const finalBars = end - final.highIndex + 1;
+  // Volume is judged on the pullback itself, not any rally back toward the pivot after it.
+  const pullbackEnd = Math.min(end, Math.max(final.lowIndex, final.highIndex + config.minFinalContractionBars - 1));
+  const finalVolume = averageVolume(bars, pullbackEnd - final.highIndex + 1, pullbackEnd);
+  const priorVolume = averageVolume(bars, config.volumeAvgPeriod, final.highIndex - 1);
+  const isTight =
+    final.depthPct <= config.maxFinalContractionPct &&
+    finalBars >= config.minFinalContractionBars &&
+    finalVolume <= priorVolume * config.maxFinalVolumeRatio;
+  if (!isTight) return null;
+
+  const base = { pivot: final.high, startIndex: start, lengthBars, depthPct, contractions };
+
+  if (depthPct <= config.maxFlatBaseDepthPct) {
+    if (isHeartbeat(bars, config, start, end)) return { ...base, pattern: "heartbeat" };
+    return isProgressive(contractions, config) ? { ...base, pattern: "flat-base" } : null;
   }
 
-  const isApproaching =
-    close < sma50 &&
-    pctBelowSma50 <= config.approachingThresholdPct &&
-    isHeartbeatConsolidation(bars, config, endIndex);
+  if (depthPct > config.maxCupDepthPct || lengthBars < config.minCupBars) return null;
+  if (!isProgressive(contractions, config)) return null;
 
-  if (isApproaching) {
-    return {
-      symbol,
-      name,
-      state: "approaching",
-      details: {
-        close,
-        sma50,
-        pctBelowSma50,
-        rangeContractionPct: rangeContractionPct(bars, config.consolidationPeriod, endIndex),
-        volumeRatio: volumeRatio(bars, config.volumeAvgPeriod, endIndex),
-        daysSinceCross: null,
-      },
-    };
+  if (final.high < leftHigh * (1 - config.maxHandleBelowHighPct / 100)) return { ...base, pattern: "low-cheat" };
+  const isHandle = final.low >= (leftHigh + baseLow) / 2 && final.depthPct <= config.maxHandleDepthPct;
+  return isHandle ? { ...base, pattern: "cup-handle" } : null;
+}
+
+/**
+ * The most recent day in the trailing `lookbackDays` whose close crossed
+ * above the pivot of the base that preceded it, with that base.
+ */
+function findBreakout(
+  bars: DailyBar[],
+  config: BreakoutScreenConfig,
+  end: number
+): { dayIndex: number; base: Base } | null {
+  for (let d = end; d > end - config.breakoutLookbackDays && d >= 1; d--) {
+    const base = findBase(bars, config, d - 1);
+    if (base && bars[d].close > base.pivot && bars[d - 1].close <= base.pivot) return { dayIndex: d, base };
   }
-
   return null;
 }
 
 /**
- * Runs the breakout screen across many symbols and splits the qualifying
- * results into triggered vs. approaching buckets.
+ * Runs the Minervini breakout screen against one symbol's history. The
+ * stock must pass the Trend Template, then either:
+ * - triggered: closed above a valid base's pivot in the last few days and
+ *   is still above it, or
+ * - approaching: is in a valid base, within a few percent below its pivot.
+ */
+export function runBreakoutScreen(
+  history: SymbolHistory,
+  config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG,
+  name = "",
+  context: BreakoutContext = {}
+): BreakoutScreenResult | null {
+  const { bars, symbol } = history;
+  const end = bars.length - 1;
+  if (end < 0) return null;
+  const rsRating = context.rsRating ?? null;
+  if (!passesTrendTemplate(bars, end, rsRating, config.trendTemplate)) return null;
+
+  const close = bars[end].close;
+  const breakout = findBreakout(bars, config, end);
+  const base = breakout?.base ?? findBase(bars, config, end);
+  if (!base) return null;
+
+  const pctFromPivot = ((close - base.pivot) / base.pivot) * 100;
+  const isTriggered = breakout !== null && close > base.pivot;
+  if (!isTriggered && (close > base.pivot || pctFromPivot < -config.approachingThresholdPct)) return null;
+
+  // On a breakout, volume is judged on the day it crossed the pivot.
+  const volumeDay = isTriggered ? breakout.dayIndex : end;
+  const volRatio = volumeRatio(bars, config.volumeAvgPeriod, volumeDay);
+  const line = context.benchmarkBars ? rsLine(bars, context.benchmarkBars) : null;
+
+  return {
+    symbol,
+    name,
+    state: isTriggered ? "triggered" : "approaching",
+    details: {
+      close,
+      sma50: sma(bars, 50, end),
+      pattern: base.pattern,
+      pivot: base.pivot,
+      pctFromPivot,
+      baseDepthPct: base.depthPct,
+      baseLengthWeeks: Math.round(base.lengthBars / 5),
+      contractions: base.contractions.map((c) => c.depthPct),
+      volumeRatio: volRatio,
+      volumeConfirmed: isTriggered && volRatio >= config.minBreakoutVolumeRatio,
+      extended: pctFromPivot > config.maxBuyRangePct,
+      daysSinceBreakout: isTriggered ? end - breakout.dayIndex : null,
+      rsRating,
+      rsLineNewHigh: line ? isRsLineAtNewHigh(line) : null,
+    },
+  };
+}
+
+/**
+ * Runs the breakout screen across many symbols, ranking RS Ratings across
+ * them, and splits the qualifying results into triggered vs. approaching.
  */
 export function scanBreakoutScreen(
   histories: SymbolHistory[],
   config: BreakoutScreenConfig = DEFAULT_BREAKOUT_CONFIG,
-  names: Record<string, string> = {}
+  names: Record<string, string> = {},
+  benchmarkBars?: DailyBar[]
 ): { triggered: BreakoutScreenResult[]; approaching: BreakoutScreenResult[] } {
+  const ratings = rsRatings(histories);
   const results = histories
-    .map((h) => runBreakoutScreen(h, config, names[h.symbol] ?? ""))
+    .map((h) =>
+      runBreakoutScreen(h, config, names[h.symbol] ?? "", { rsRating: ratings.get(h.symbol) ?? null, benchmarkBars })
+    )
     .filter((r): r is BreakoutScreenResult => r !== null);
 
   const triggered = results
     .filter((r) => r.state === "triggered")
     .sort((a, b) => b.details.volumeRatio - a.details.volumeRatio);
 
+  // Closest to the pivot first.
   const approaching = results
     .filter((r) => r.state === "approaching")
-    .sort((a, b) => a.details.pctBelowSma50 - b.details.pctBelowSma50);
+    .sort((a, b) => b.details.pctFromPivot - a.details.pctFromPivot);
 
-  return {
-    triggered,
-    approaching,
-  };
+  return { triggered, approaching };
 }

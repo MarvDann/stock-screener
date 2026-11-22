@@ -1,3 +1,5 @@
+import type { BasePattern } from "../types";
+
 const ABBREVIATIONS: [number, string][] = [
   [1_000_000_000, "B"],
   [1_000_000, "M"],
@@ -67,4 +69,20 @@ export function formatOrdinal(n: number): string {
   const teen = n % 100 >= 11 && n % 100 <= 13;
   const suffix = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
   return `${n}${suffix}`;
+}
+
+const PATTERN_LABELS: Record<BasePattern, string> = {
+  "flat-base": "Flat base",
+  heartbeat: "Heartbeat",
+  "cup-handle": "Cup with handle",
+  "low-cheat": "Low cheat",
+};
+
+export function formatPattern(pattern: BasePattern): string {
+  return PATTERN_LABELS[pattern];
+}
+
+/** A VCP's contractions as Minervini writes them, e.g. "3T 24/11/4%". */
+export function formatContractions(depths: number[]): string {
+  return `${depths.length}T ${depths.map((d) => Math.round(d)).join("/")}%`;
 }

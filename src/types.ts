@@ -52,6 +52,9 @@ export interface TickerProfile {
   currency: string | null;
 }
 
+/** The kind of base a breakout comes out of. */
+export type BasePattern = "flat-base" | "heartbeat" | "cup-handle" | "low-cheat";
+
 /**
  * Result of running the breakout screen against one symbol.
  */
@@ -62,12 +65,28 @@ export interface BreakoutScreenResult {
   details: {
     close: number;
     sma50: number;
-    /** (sma50 - close) / sma50 * 100. Negative once price is above the SMA. */
-    pctBelowSma50: number;
-    rangeContractionPct: number; // recent range as % of price, lower = tighter
-    volumeRatio: number; // today's volume vs its average
-    /** Trading days since the MA50 cross (0 = today). Null when state is "approaching". */
-    daysSinceCross: number | null;
+    pattern: BasePattern;
+    /** High of the base's final contraction — the buy point. */
+    pivot: number;
+    /** (close - pivot) / pivot * 100. Negative while below the pivot. */
+    pctFromPivot: number;
+    /** Left-side high to the base's low, in %. */
+    baseDepthPct: number;
+    baseLengthWeeks: number;
+    /** Depth of each contraction in %, oldest first — e.g. [24, 11, 4] for a 3T VCP. */
+    contractions: number[];
+    /** Volume vs its 50-day average, on the breakout day once triggered, else today. */
+    volumeRatio: number;
+    /** Breakout-day volume at least 40% above average. Always false while approaching. */
+    volumeConfirmed: boolean;
+    /** More than 5% above the pivot — past the buy range. */
+    extended: boolean;
+    /** Trading days since the close crossed the pivot (0 = today). Null when approaching. */
+    daysSinceBreakout: number | null;
+    /** RS Rating (1–99) against the tracked universe; null when it couldn't be ranked. */
+    rsRating: number | null;
+    /** RS line vs SPY at a 52-week high; null without benchmark data. */
+    rsLineNewHigh: boolean | null;
   };
 }
 

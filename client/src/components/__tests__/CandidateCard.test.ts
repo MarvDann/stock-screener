@@ -12,10 +12,18 @@ function makeCandidate(overrides: Partial<StockCard> = {}): StockCard {
     details: {
       close: 190.5,
       sma50: 180,
-      pctBelowSma50: -5.8,
-      rangeContractionPct: 4.2,
+      pattern: "cup-handle",
+      pivot: 187.68,
+      pctFromPivot: 1.5,
+      baseDepthPct: 22,
+      baseLengthWeeks: 12,
+      contractions: [22, 9, 3],
       volumeRatio: 2.3,
-      daysSinceCross: 0,
+      volumeConfirmed: true,
+      extended: false,
+      daysSinceBreakout: 0,
+      rsRating: 91,
+      rsLineNewHigh: true,
     },
     currency: "USD",
     bars: [],
@@ -74,23 +82,29 @@ describe("CandidateCard", () => {
     expect(wrapper.find("h3").text()).toBe("AAPL");
   });
 
-  it("summarizes a triggered candidate with volume, cross day, and range", () => {
+  it("summarizes a triggered candidate with its base, pivot cross day, and volume", () => {
     const wrapper = mountCard(makeCandidate());
     expect(wrapper.find(".summary").text()).toBe(
-      "2.3x volume · crossed MA50 today · 4.2% range"
+      "Cup with handle · 3T 22/9/3% · crossed pivot today · 2.3x volume"
     );
+  });
+
+  it("flags a breakout on light volume or past the buy range", () => {
+    const details = { ...makeCandidate().details!, volumeConfirmed: false, extended: true };
+    expect(mountCard(makeCandidate({ details })).find(".summary").text()).toContain("light volume · extended");
   });
 
   it("shows days-ago wording for a triggered candidate that crossed earlier", () => {
     const wrapper = mountCard(
-      makeCandidate({ details: { ...makeCandidate().details!, daysSinceCross: 3 } })
+      makeCandidate({ details: { ...makeCandidate().details!, daysSinceBreakout: 3 } })
     );
-    expect(wrapper.find(".summary").text()).toContain("crossed MA50 3 day(s) ago");
+    expect(wrapper.find(".summary").text()).toContain("crossed pivot 3 day(s) ago");
   });
 
-  it("summarizes an approaching candidate with distance from the SMA", () => {
-    const wrapper = mountCard(makeCandidate({ state: "approaching" }));
-    expect(wrapper.find(".summary").text()).toBe("-5.8% below 50-day SMA · 4.2% range");
+  it("summarizes an approaching candidate with distance from the pivot", () => {
+    const details = { ...makeCandidate().details!, pattern: "flat-base" as const, pivot: 195, pctFromPivot: -2.3, daysSinceBreakout: null };
+    const wrapper = mountCard(makeCandidate({ state: "approaching", details }));
+    expect(wrapper.find(".summary").text()).toBe("Flat base · 3T 22/9/3% · 2.3% below $195.00 pivot");
   });
 
   it("shows the close with its currency symbol", () => {

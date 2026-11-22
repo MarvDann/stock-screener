@@ -21,10 +21,18 @@ function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
     details: {
       close: 190.5,
       sma50: 180,
-      pctBelowSma50: -5.8,
-      rangeContractionPct: 4.2,
+      pattern: "cup-handle",
+      pivot: 187.68,
+      pctFromPivot: 1.5,
+      baseDepthPct: 22,
+      baseLengthWeeks: 12,
+      contractions: [22, 9, 3],
       volumeRatio: 2.3,
-      daysSinceCross: 3,
+      volumeConfirmed: true,
+      extended: false,
+      daysSinceBreakout: 3,
+      rsRating: 91,
+      rsLineNewHigh: true,
     },
     financials: {
       grossMargin: 0.4235,
@@ -112,6 +120,19 @@ describe("StockDetailView financial cards", () => {
     expect(wrapper.find(".price").text()).toBe("£190.50");
     expect(statValue(wrapper, "Close")).toBe("£190.50");
     expect(statValue(wrapper, "50-day SMA")).toBe("£180.00");
+    expect(statValue(wrapper, "Pivot")).toBe("£187.68");
+  });
+
+  it("shows the base, its contractions and relative strength", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail());
+    const wrapper = await mountView();
+
+    expect(statValue(wrapper, "Pattern")).toBe("Cup with handle");
+    expect(statValue(wrapper, "% vs Pivot")).toBe("1.50%");
+    expect(statValue(wrapper, "Base")).toBe("22% deep · 12 wks");
+    expect(statValue(wrapper, "Contractions")).toBe("3T 22/9/3%");
+    expect(statValue(wrapper, "RS Rating")).toBe("91");
+    expect(statValue(wrapper, "RS Line")).toBe("New high");
   });
 
   it("falls back to the last bar's close in the header when the stock isn't a breakout candidate", async () => {
