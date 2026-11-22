@@ -3,6 +3,26 @@ import { DailyBar, MarketDataProvider, SymbolHistory } from "../types";
 
 const yahooFinance = new YahooFinance();
 
+const NETWORK_RETRY_DELAYS_MS = [500, 2000];
+
+/**
+ * Retries `fn` when it fails at the network level ("fetch failed": a reset
+ * connection, timeout or DNS hiccup, with the reason in `err.cause`). Those
+ * tend to hit a whole concurrent batch at once and clear up within seconds.
+ * HTTP and validation errors are rethrown immediately.
+ */
+async function withNetworkRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isNetworkError = err instanceof TypeError && err.message === "fetch failed";
+      if (!isNetworkError || attempt >= NETWORK_RETRY_DELAYS_MS.length) throw err;
+      await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
 /**
  * Free, no-API-key data provider backed by yahoo-finance2.
  * Good for experimentation and backtesting. Swap this out for a
@@ -52,8 +72,9 @@ export class YahooMarketDataProvider implements MarketDataProvider {
       const batch = symbols.slice(i, i + batchSize);
       const batchResults = await Promise.all(
         batch.map((s) =>
-          this.getDailyHistory(s, lookbackDays).catch((err) => {
-            console.error(`Failed to fetch ${s}:`, err.message);
+          withNetworkRetry(() => this.getDailyHistory(s, lookbackDays)).catch((err) => {
+            const cause = err.cause ? ` (${err.cause.code ?? err.cause.message ?? err.cause})` : "";
+            console.error(`Failed to fetch ${s}: ${err.message}${cause}`);
             return { symbol: s, bars: [] } as SymbolHistory;
           })
         )

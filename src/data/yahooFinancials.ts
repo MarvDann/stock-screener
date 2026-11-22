@@ -3,6 +3,18 @@ import { CompanyProfile, StockFinancials, TickerProfile } from "../types";
 
 const yahooFinance = new YahooFinance();
 
+/**
+ * The validated quoteSummary result type. yahoo-finance2 doesn't export it from
+ * its root, so take it from the first (validated) overload; the
+ * `validateResult: false` overload returns unknown.
+ */
+type QuoteSummaryResult = typeof yahooFinance.quoteSummary extends {
+  (...args: any[]): Promise<infer R>;
+  (...args: any[]): Promise<unknown>;
+}
+  ? R
+  : never;
+
 export interface StockFundamentals {
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
@@ -17,9 +29,15 @@ export interface StockFundamentals {
  * only free source for these fundamentals regardless of DATA_PROVIDER.
  */
 export async function getStockFundamentals(symbol: string): Promise<StockFundamentals> {
-  const result = await yahooFinance.quoteSummary(symbol, {
-    modules: ["financialData", "summaryDetail", "earningsHistory", "assetProfile"],
-  });
+  // Yahoo omits epsActual/epsDifference/surprisePercent on some quarters
+  // (e.g. LNG), which fails the library's schema and would discard the whole
+  // result. With validation off, Dates are still coerced and the fields below
+  // are all null-checked anyway.
+  const result = (await yahooFinance.quoteSummary(
+    symbol,
+    { modules: ["financialData", "summaryDetail", "earningsHistory", "assetProfile"] },
+    { validateResult: false }
+  )) as QuoteSummaryResult;
 
   const fd = result.financialData;
   const sd = result.summaryDetail;
