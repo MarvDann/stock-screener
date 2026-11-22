@@ -144,6 +144,8 @@ export interface Etf {
 export interface EtfsResponse {
   /** Display order. */
   categories: string[];
+  /** Categories ETFs can be added to or moved between; US Sectors is fixed. */
+  editableCategories: string[];
   etfs: Etf[];
 }
 

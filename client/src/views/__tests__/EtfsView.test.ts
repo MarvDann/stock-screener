@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { flushPromises, shallowMount } from "@vue/test-utils";
+import { flushPromises, RouterLinkStub, shallowMount } from "@vue/test-utils";
 import EtfsView from "../EtfsView.vue";
 import type { Router } from "vue-router";
 import { routerAt } from "../../__tests__/testRouter";
@@ -10,9 +10,15 @@ import type { Etf, StockCard } from "../../types";
 
 const fetchEtfs = vi.fn();
 const fetchStocks = vi.fn();
+const addEtf = vi.fn();
+const updateEtf = vi.fn();
+const deleteEtf = vi.fn();
 vi.mock("../../api", () => ({
   fetchEtfs: (...args: unknown[]) => fetchEtfs(...args),
   fetchStocks: (...args: unknown[]) => fetchStocks(...args),
+  addEtf: (...args: unknown[]) => addEtf(...args),
+  updateEtf: (...args: unknown[]) => updateEtf(...args),
+  deleteEtf: (...args: unknown[]) => deleteEtf(...args),
 }));
 
 function makeCard(symbol: string): StockCard {
@@ -27,9 +33,10 @@ const ETFS: Etf[] = [
   { symbol: "XLK", name: "Technology Select Sector SPDR", category: "US Sectors" },
 ];
 const CATEGORIES = ["Global", "US Market", "Growth & Tech", "US Sectors", "Bonds"];
+const EDITABLE = CATEGORIES.filter((c) => c !== "US Sectors");
 
 async function mountView() {
-  const wrapper = shallowMount(EtfsView, { global: { plugins: [router] } });
+  const wrapper = shallowMount(EtfsView, { global: { plugins: [router], stubs: { RouterLink: RouterLinkStub } } });
   await flushPromises();
   return wrapper;
 }
@@ -46,7 +53,10 @@ beforeEach(async () => {
   router = await routerAt();
   vi.useFakeTimers();
   resetStockCardCache();
-  fetchEtfs.mockReset().mockResolvedValue({ categories: CATEGORIES, etfs: ETFS });
+  fetchEtfs.mockReset().mockResolvedValue({ categories: CATEGORIES, editableCategories: EDITABLE, etfs: ETFS });
+  addEtf.mockReset();
+  updateEtf.mockReset();
+  deleteEtf.mockReset();
   fetchStocks.mockReset().mockImplementation((symbols: string[]) =>
     Promise.resolve({ stocks: symbols.map(makeCard), warnings: [] })
   );
@@ -105,7 +115,7 @@ describe("EtfsView", () => {
 
   it("pages through results and resets to page 1 on a category change", async () => {
     const many: Etf[] = Array.from({ length: 8 }, (_, i) => ({ symbol: `E${i}`, name: `ETF ${i}`, category: "Bonds" }));
-    fetchEtfs.mockResolvedValue({ categories: CATEGORIES, etfs: many });
+    fetchEtfs.mockResolvedValue({ categories: CATEGORIES, editableCategories: EDITABLE, etfs: many });
     const wrapper = await mountView();
 
     await wrapper.findComponent(Pagination).vm.$emit("update:page", 2);
@@ -140,5 +150,98 @@ describe("EtfsView", () => {
     await chip(wrapper, "Growth & Tech").trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.query).toEqual({ category: "Growth & Tech" });
+  });
+
+  describe("editing", () => {
+    async function mountEditing() {
+      const wrapper = await mountView();
+      await wrapper.find(".edit-toggle").trigger("click");
+      return wrapper;
+    }
+
+    const rowSymbols = (wrapper: Awaited<ReturnType<typeof mountView>>) =>
+      wrapper.findAll(".etf-table tbody tr").map((r) => r.find(".symbol").text());
+
+    const row = (wrapper: Awaited<ReturnType<typeof mountView>>, symbol: string) =>
+      wrapper.findAll(".etf-table tbody tr").find((r) => r.find(".symbol").text() === symbol)!;
+
+    it("swaps the cards for a table, with US Sectors funds fixed", async () => {
+      const wrapper = await mountEditing();
+      expect(wrapper.findAllComponents(CandidateCard)).toHaveLength(0);
+      expect(rowSymbols(wrapper)).toEqual(["VWRP.L", "SPY", "QQQ", "SMH", "XLK"]);
+      expect(row(wrapper, "XLK").text()).toContain("Fixed");
+      expect(row(wrapper, "XLK").find("select").exists()).toBe(false);
+      expect(row(wrapper, "SPY").findAll("button").map((b) => b.text())).toEqual(["Rename", "Remove"]);
+
+      await wrapper.find(".edit-toggle").trigger("click");
+      expect(wrapper.find(".etf-table").exists()).toBe(false);
+      expect(cardSymbols(wrapper)).toHaveLength(5);
+    });
+
+    it("offers only editable categories, defaulting to the one being viewed", async () => {
+      const wrapper = await mountView();
+      await chip(wrapper, "Growth & Tech").trigger("click");
+      await wrapper.find(".edit-toggle").trigger("click");
+      const select = wrapper.find(".add-form select");
+      expect(select.findAll("option").map((o) => o.text())).toEqual(EDITABLE);
+      expect((select.element as HTMLSelectElement).value).toBe("Growth & Tech");
+      expect(rowSymbols(wrapper)).toEqual(["QQQ", "SMH"]);
+    });
+
+    it("adds an ETF to the end of its category", async () => {
+      addEtf.mockResolvedValue({ symbol: "CSPX.L", name: "iShares Core S&P 500", category: "Global" });
+      const wrapper = await mountEditing();
+      await wrapper.find(".symbol-input").setValue(" cspx.l ");
+      await wrapper.find(".add-form").trigger("submit");
+      await flushPromises();
+      expect(addEtf).toHaveBeenCalledWith("cspx.l", "Global", undefined);
+      expect(rowSymbols(wrapper)).toEqual(["VWRP.L", "CSPX.L", "SPY", "QQQ", "SMH", "XLK"]);
+      expect((wrapper.find(".symbol-input").element as HTMLInputElement).value).toBe("");
+    });
+
+    it("shows the server's error when adding fails", async () => {
+      addEtf.mockRejectedValue(new Error("SPY is already listed under US Market"));
+      const wrapper = await mountEditing();
+      await wrapper.find(".symbol-input").setValue("SPY");
+      await wrapper.find(".add-form").trigger("submit");
+      await flushPromises();
+      expect(wrapper.find(".inline-error").text()).toBe("SPY is already listed under US Market");
+    });
+
+    it("renames an ETF", async () => {
+      updateEtf.mockResolvedValue({ symbol: "SPY", name: "SPDR S&P 500 ETF Trust", category: "US Market" });
+      const wrapper = await mountEditing();
+      await row(wrapper, "SPY").find("button").trigger("click");
+      await wrapper.find(".rename-input").setValue("SPDR S&P 500 ETF Trust");
+      await wrapper.find(".rename-form").trigger("submit");
+      await flushPromises();
+      expect(updateEtf).toHaveBeenCalledWith("SPY", { name: "SPDR S&P 500 ETF Trust" });
+      expect(row(wrapper, "SPY").text()).toContain("SPDR S&P 500 ETF Trust");
+      expect(wrapper.find(".rename-form").exists()).toBe(false);
+    });
+
+    it("moves an ETF to another category", async () => {
+      updateEtf.mockResolvedValue({ symbol: "VWRP.L", name: "Vanguard FTSE All-World (Acc)", category: "Bonds" });
+      const wrapper = await mountEditing();
+      await row(wrapper, "VWRP.L").find("select").setValue("Bonds");
+      await flushPromises();
+      expect(updateEtf).toHaveBeenCalledWith("VWRP.L", { category: "Bonds" });
+      expect(rowSymbols(wrapper)).toEqual(["SPY", "QQQ", "SMH", "XLK", "VWRP.L"]);
+      expect(chip(wrapper, "Bonds").text()).toBe("Bonds 1");
+    });
+
+    it("removes an ETF after confirming", async () => {
+      vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+      deleteEtf.mockResolvedValue(undefined);
+      const wrapper = await mountEditing();
+
+      await row(wrapper, "SMH").find(".remove-btn").trigger("click");
+      expect(deleteEtf).not.toHaveBeenCalled();
+
+      await row(wrapper, "SMH").find(".remove-btn").trigger("click");
+      await flushPromises();
+      expect(deleteEtf).toHaveBeenCalledWith("SMH");
+      expect(rowSymbols(wrapper)).not.toContain("SMH");
+    });
   });
 });

@@ -1,6 +1,7 @@
 import type {
   BreakoutResponse,
   EarningsResponse,
+  Etf,
   EtfsResponse,
   OverviewResponse,
   SectorRotationResponse,
@@ -116,6 +117,18 @@ export function fetchVolatility(): Promise<VolatilityResponse> {
 
 export function fetchEtfs(): Promise<EtfsResponse> {
   return fetchJson<EtfsResponse>("/api/etfs");
+}
+
+export function addEtf(symbol: string, category: string, name?: string): Promise<Etf> {
+  return fetchJson<Etf>("/api/etfs", { method: "POST", body: { symbol, category, name } });
+}
+
+export function updateEtf(symbol: string, changes: { name?: string; category?: string }): Promise<Etf> {
+  return fetchJson<Etf>(`/api/etfs/${encodeURIComponent(symbol)}`, { method: "PATCH", body: changes });
+}
+
+export function deleteEtf(symbol: string): Promise<void> {
+  return fetchJson<void>(`/api/etfs/${encodeURIComponent(symbol)}`, { method: "DELETE" });
 }
 
 export async function fetchTickers(): Promise<Ticker[]> {

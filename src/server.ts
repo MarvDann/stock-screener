@@ -37,7 +37,7 @@ import {
   normalizeSymbol,
 } from "./tickers";
 import { displayCurrency, toMajorUnits } from "./currency";
-import { ETF_CATEGORIES, getEtf, listEtfs } from "./etfs";
+import { createEtfsRouter, getEtf, listEtfs } from "./etfs";
 import { createWatchlistsRouter } from "./watchlists";
 import { computeGroupStats, computeMarketOverview } from "./screens/marketOverview";
 import { VOLATILITY_INDICES, summarizeVolatility } from "./screens/volatility";
@@ -78,6 +78,18 @@ app.use(
     onChange: () => {
       clearCache("breakout");
       earningsCache = null;
+    },
+  })
+);
+app.use(
+  createEtfsRouter({
+    lookupEtf: async (symbol) => {
+      const history = await provider.getDailyHistory(symbol, 30).catch(() => null);
+      if (!history || history.bars.length === 0) return null;
+      const [name, profile] = await Promise.all([getQuoteName(symbol).catch(() => ""), getTickerProfile(symbol)]);
+      // Prices are converted from pence by currency, so an ETF can't be added without one.
+      if (!profile.currency) throw new Error(`No currency for ${symbol}`);
+      return { name, currency: profile.currency };
     },
   })
 );
@@ -199,13 +211,6 @@ function chartableSecurities(): { names: Record<string, string>; currencies: Rec
     currencies: { ...Object.fromEntries(etfs.map((e) => [e.symbol, e.currency])), ...getCurrencyMap() },
   };
 }
-
-app.get("/api/etfs", requireAuth, (_req, res) => {
-  res.json({
-    categories: ETF_CATEGORIES,
-    etfs: listEtfs().map(({ symbol, name, category }) => ({ symbol, name, category })),
-  });
-});
 
 app.get("/api/stocks", requireAuth, async (req, res) => {
   const { names, currencies } = chartableSecurities();

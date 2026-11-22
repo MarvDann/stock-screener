@@ -26,6 +26,13 @@ whether the volatility curve is inverted (VIX above VIX 3-month, typical of
 sell-offs), and line charts over 1 month to 1 year. These indices always come
 from Yahoo, whichever `DATA_PROVIDER` is set.
 
+The **ETFs** page charts a curated list of ETFs by category. Use **Edit list**
+to add, rename, recategorise or remove them. New symbols are checked against
+the data provider, and their currency is looked up. The US Sectors group is
+fixed: it's the 11 SPDR funds the Sector Rotation page ranks. The list lives in
+the database (and so in `pnpm run db:backup`), starting from the curated set
+in `src/etfs.ts` on a fresh install.
+
 **Watchlists** let each user group stocks and ETFs into named lists and
 chart them together. Create and manage them on the Watchlists page, or use
 the Watchlists menu on any stock's page to add or remove it. Each account's
