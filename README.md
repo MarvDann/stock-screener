@@ -71,8 +71,7 @@ Dates come from Yahoo; ones a company hasn't confirmed yet are marked
 **Volatility** tracks the VIX alongside its 9-day and 3-month siblings and
 the VVIX: today's level and how it compares with the past year, whether the
 volatility curve is inverted (VIX above VIX 3-month, typical of sell-offs),
-and line charts over 1 month to 1 year. These indices always come from
-Yahoo, whichever `DATA_PROVIDER` is set.
+and line charts over 1 month to 1 year.
 
 **ETFs** charts a curated list of ETFs by category. Use **Edit list** to
 add, rename, recategorise or remove them. New symbols are checked against the
@@ -105,14 +104,12 @@ pnpm --dir client install
 Create a `.env` file in the project root:
 
 ```
-FMP_API_KEY=your-key-here
-DATA_PROVIDER=yahoo
 JWT_SECRET=some-random-secret
 ```
 
-`DATA_PROVIDER` can be `yahoo` (free, no key needed) or `fmp` (requires
-an API key from financialmodelingprep.com). `JWT_SECRET` is used to sign
-authentication tokens — use a long random string in production.
+Market data comes from Yahoo Finance (free, no API key needed).
+`JWT_SECRET` is used to sign authentication tokens — use a long random
+string in production.
 
 ### Password reset emails (optional)
 

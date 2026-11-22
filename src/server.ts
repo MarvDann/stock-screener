@@ -1,6 +1,5 @@
 import express from "express";
 import { YahooMarketDataProvider } from "./data/yahooProvider";
-import { FmpMarketDataProvider } from "./data/fmpProvider";
 import { getQuoteName, getStockFundamentals, getTickerProfile } from "./data/yahooFinancials";
 import { getCompanyNews } from "./data/companyNews";
 import { NextEarnings, fetchNextEarnings, marketSession, upcomingEarnings } from "./data/earningsCalendar";
@@ -67,9 +66,7 @@ const LONG_TERM_CHARTS: Record<Exclude<Timeframe, "daily">, { lookbackDays: numb
 const LONG_TERM_SMA_PERIODS: [number, number] = [10, 30];
 const MAX_STOCKS_PER_REQUEST = 24;
 
-const DATA_PROVIDER = process.env.DATA_PROVIDER ?? "fmp";
-const provider: MarketDataProvider =
-  DATA_PROVIDER === "yahoo" ? new YahooMarketDataProvider() : new FmpMarketDataProvider();
+const provider: MarketDataProvider = new YahooMarketDataProvider();
 
 function buildSmaSeries(bars: SymbolHistory["bars"], period: number, visibleCount = CHART_BARS): number[] {
   const visibleBars = bars.slice(-visibleCount);
@@ -387,14 +384,11 @@ app.get("/api/earnings", requireAuth, async (_req, res) => {
   }
 });
 
-// Indices like ^VIX are a Yahoo symbol convention, so they come from Yahoo whatever DATA_PROVIDER is.
-const indexProvider: MarketDataProvider = provider instanceof YahooMarketDataProvider ? provider : new YahooMarketDataProvider();
-
 app.get("/api/volatility", requireAuth, async (_req, res) => {
   try {
     let histories = getCached("volatility");
     if (!histories) {
-      histories = await indexProvider.getManyDailyHistories(Object.keys(VOLATILITY_INDICES), LOOKBACK_CALENDAR_DAYS);
+      histories = await provider.getManyDailyHistories(Object.keys(VOLATILITY_INDICES), LOOKBACK_CALENDAR_DAYS);
       // Only a complete set is kept, so a failed index is retried next time.
       if (histories.every((h) => h.bars.length > 0)) setCache("volatility", histories);
     }

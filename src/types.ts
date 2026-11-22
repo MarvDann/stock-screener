@@ -23,7 +23,7 @@ export interface SymbolHistory {
 }
 
 /**
- * Data provider abstraction. Swap yahoo-finance2 for FMP/Polygon/etc.
+ * Data provider abstraction. Swap yahoo-finance2 for Polygon/etc.
  * later without touching indicator or screen logic.
  */
 export interface MarketDataProvider {

@@ -26,7 +26,7 @@ async function withNetworkRetry<T>(fn: () => Promise<T>): Promise<T> {
 /**
  * Free, no-API-key data provider backed by yahoo-finance2.
  * Good for experimentation and backtesting. Swap this out for a
- * paid provider (FMP/Polygon) by implementing MarketDataProvider
+ * paid provider (e.g. Polygon) by implementing MarketDataProvider
  * again with the same interface — nothing else in the app needs to change.
  */
 export class YahooMarketDataProvider implements MarketDataProvider {

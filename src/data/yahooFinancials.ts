@@ -25,8 +25,7 @@ export interface StockFundamentals {
 /**
  * Fetches fundamentals (margins, free cash flow, debt/equity, trailing P/E,
  * trailing quarterly EPS, and the company profile) from yahoo-finance2's quoteSummary endpoint.
- * This is independent of the OHLCV MarketDataProvider in use — Yahoo is the
- * only free source for these fundamentals regardless of DATA_PROVIDER.
+ * This is independent of the OHLCV MarketDataProvider.
  */
 export async function getStockFundamentals(symbol: string): Promise<StockFundamentals> {
   // Yahoo omits epsActual/epsDifference/surprisePercent on some quarters
