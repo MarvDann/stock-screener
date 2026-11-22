@@ -13,6 +13,7 @@ const chart = {
   addHistogramSeries: vi.fn(series),
   addLineSeries: vi.fn(series),
   applyOptions: vi.fn(),
+  subscribeCrosshairMove: vi.fn(),
   remove: vi.fn(),
 };
 
@@ -39,6 +40,7 @@ beforeEach(() => {
   chart.addCandlestickSeries.mockClear();
   chart.addHistogramSeries.mockClear();
   chart.addLineSeries.mockClear();
+  chart.subscribeCrosshairMove.mockClear();
   chart.remove.mockClear();
 });
 
@@ -112,5 +114,37 @@ describe("PriceChart", () => {
     wrapper.unmount();
 
     expect(chart.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows H, L, O, C and V for the hovered candle, falling back to the latest bar", async () => {
+    const wrapper = mount(PriceChart, {
+      props: {
+        bars: [
+          makeBar({ date: "2024-01-02T00:00:00Z", open: 10, high: 12.5, low: 9.25, close: 11, volume: 1234567 }),
+          makeBar({ date: "2024-01-03T00:00:00Z", open: 11, high: 11.5, low: 10, close: 10.5, volume: 2000 }),
+        ],
+        sma50Series: [NaN, NaN],
+        sma150Series: [NaN, NaN],
+      },
+    });
+    const onMove = chart.subscribeCrosshairMove.mock.calls[0][0] as (p: { time?: string }) => void;
+    const legend = () => wrapper.get('[data-testid="ohlcv-legend"]');
+
+    expect(legend().text()).toContain("C: 10.50");
+    expect(legend().classes()).toContain("down");
+
+    onMove({ time: "2024-01-02" });
+    await wrapper.vm.$nextTick();
+    const text = legend().text();
+    expect(text).toContain("H: 12.50");
+    expect(text).toContain("L: 9.25");
+    expect(text).toContain("O: 10.00");
+    expect(text).toContain("C: 11.00");
+    expect(text).toContain("V: 1.2M");
+    expect(legend().classes()).toContain("up");
+
+    onMove({});
+    await wrapper.vm.$nextTick();
+    expect(legend().text()).toContain("C: 10.50");
   });
 });

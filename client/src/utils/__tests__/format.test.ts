@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatPrice, formatOrdinal, formatRatio, formatTimeAgo } from "../format";
+import { currencySymbol, formatPercent, formatAbbreviatedCurrency, formatAbbreviatedNumber, formatPrice, formatOrdinal, formatRatio, formatTimeAgo } from "../format";
 
 describe("formatPercent", () => {
   it("converts a decimal fraction to a percentage string with 2 decimal places", () => {
@@ -20,6 +20,19 @@ describe("formatPercent", () => {
 
   it("rounds to 2 decimal places", () => {
     expect(formatPercent(0.30101)).toBe("30.10%");
+  });
+});
+
+describe("formatAbbreviatedNumber", () => {
+  it("shortens thousands, millions and billions", () => {
+    expect(formatAbbreviatedNumber(1_234_567)).toBe("1.2M");
+    expect(formatAbbreviatedNumber(45_600)).toBe("45.6K");
+    expect(formatAbbreviatedNumber(3_100_000_000)).toBe("3.1B");
+  });
+
+  it("leaves values under 1,000 unchanged and keeps the sign", () => {
+    expect(formatAbbreviatedNumber(950)).toBe("950");
+    expect(formatAbbreviatedNumber(-2_500)).toBe("-2.5K");
   });
 });
 

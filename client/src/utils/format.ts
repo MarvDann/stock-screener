@@ -35,18 +35,23 @@ export function formatPrice(value: number, currency: string | null): string {
   }
 }
 
-export function formatAbbreviatedCurrency(value: number, currency = "USD"): string {
+/** A number shortened with K/M/B, e.g. 1_234_567 → "1.2M"; values under 1,000 are left as-is. */
+export function formatAbbreviatedNumber(value: number): string {
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);
-  const symbol = currencySymbol(currency);
 
   for (const [threshold, suffix] of ABBREVIATIONS) {
     if (abs >= threshold) {
-      return `${sign}${symbol}${(abs / threshold).toFixed(1)}${suffix}`;
+      return `${sign}${(abs / threshold).toFixed(1)}${suffix}`;
     }
   }
 
-  return `${sign}${symbol}${abs}`;
+  return `${sign}${abs}`;
+}
+
+export function formatAbbreviatedCurrency(value: number, currency = "USD"): string {
+  const sign = value < 0 ? "-" : "";
+  return `${sign}${currencySymbol(currency)}${formatAbbreviatedNumber(Math.abs(value))}`;
 }
 
 export function formatRatio(value: number): string {

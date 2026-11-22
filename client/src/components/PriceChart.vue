@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ColorType, createChart, LineStyle, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
 import { useTheme } from "../composables/useTheme";
 import { CHART_THEMES } from "../utils/chartTheme";
+import { formatAbbreviatedNumber } from "../utils/format";
 
 const props = withDefaults(
   defineProps<{ bars: DailyBar[]; sma50Series: number[]; sma150Series: number[]; height?: number }>(),
@@ -17,6 +18,13 @@ let sma50Series: ISeriesApi<"Line"> | null = null;
 let sma150Series: ISeriesApi<"Line"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let resizeObserver: ResizeObserver | null = null;
+const hoveredBar = ref<DailyBar | null>(null);
+// The readout sits above the chart rather than over the candles, and shows the
+// latest bar when nothing is hovered so the line never appears or disappears.
+const legendBar = computed(() => hoveredBar.value ?? props.bars[props.bars.length - 1] ?? null);
+const legendUp = computed(() => (legendBar.value ? legendBar.value.close >= legendBar.value.open : true));
+
+const formatOhlc = (value: number) => value.toFixed(2);
 
 function render() {
   if (!container.value) return;
@@ -106,6 +114,12 @@ function render() {
       .filter((p) => p.value != null && !Number.isNaN(p.value))
   );
 
+  const barsByTime = new Map(props.bars.map((b) => [b.date.slice(0, 10), b]));
+  hoveredBar.value = null;
+  chart.subscribeCrosshairMove((param) => {
+    hoveredBar.value = param.time ? barsByTime.get(String(param.time)) ?? null : null;
+  });
+
   resizeObserver?.disconnect();
   resizeObserver = new ResizeObserver((entries) => {
     if (!chart) return;
@@ -124,11 +138,41 @@ watch([() => props.bars, theme], render);
 </script>
 
 <template>
-  <div ref="container" class="chart"></div>
+  <div class="chart-wrap">
+    <div v-if="legendBar" class="legend" :class="legendUp ? 'up' : 'down'" data-testid="ohlcv-legend">
+      <span><span class="label">H:</span> <span class="value">{{ formatOhlc(legendBar.high) }}</span></span>
+      <span><span class="label">L:</span> <span class="value">{{ formatOhlc(legendBar.low) }}</span></span>
+      <span><span class="label">O:</span> <span class="value">{{ formatOhlc(legendBar.open) }}</span></span>
+      <span><span class="label">C:</span> <span class="value">{{ formatOhlc(legendBar.close) }}</span></span>
+      <span><span class="label">V:</span> <span class="value">{{ formatAbbreviatedNumber(legendBar.volume) }}</span></span>
+    </div>
+    <div ref="container" class="chart"></div>
+  </div>
 </template>
 
 <style scoped>
+.chart-wrap {
+  width: 100%;
+}
 .chart {
   width: 100%;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 0 2px 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.legend .label {
+  color: var(--text-muted);
+}
+.legend.up .value {
+  color: var(--positive);
+}
+.legend.down .value {
+  color: var(--negative);
 }
 </style>
