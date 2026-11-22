@@ -120,6 +120,19 @@ export interface StockDetail {
   news: NewsItem[];
 }
 
+export type ChartTimeframe = "daily" | "weekly" | "monthly";
+
+/** A stock's weekly or monthly price chart, for the detail page. */
+export interface StockChart {
+  timeframe: Exclude<ChartTimeframe, "daily">;
+  /** One bar per week or month, dated by its first trading day; the last covers the period so far. */
+  bars: DailyBar[];
+  /** Lengths, in bars, of the fast and slow SMAs. */
+  smaPeriods: [number, number];
+  smaFastSeries: number[];
+  smaSlowSeries: number[];
+}
+
 export interface SectorRotationResult {
   sectorSymbol: string;
   sectorName: string;

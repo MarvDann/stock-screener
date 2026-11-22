@@ -7,6 +7,7 @@ import type {
   OverviewResponse,
   SectorRotationResponse,
   SectorStatsResponse,
+  StockChart,
   StockDetail,
   StocksResponse,
   Ticker,
@@ -106,6 +107,10 @@ export function fetchSectorRotation(): Promise<SectorRotationResponse> {
 
 export function fetchStockDetail(symbol: string): Promise<StockDetail> {
   return fetchJson<StockDetail>(`/api/stock/${encodeURIComponent(symbol)}`);
+}
+
+export function fetchStockChart(symbol: string, timeframe: StockChart["timeframe"]): Promise<StockChart> {
+  return fetchJson<StockChart>(`/api/stock/${encodeURIComponent(symbol)}/chart?timeframe=${timeframe}`);
 }
 
 export function fetchStocks(symbols: string[]): Promise<StocksResponse> {

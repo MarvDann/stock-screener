@@ -181,6 +181,17 @@ export interface StockDetailResponse {
   news: NewsItem[];
 }
 
+/** A stock's weekly or monthly price chart, for the detail page. */
+export interface StockChartResponse {
+  timeframe: "weekly" | "monthly";
+  /** One bar per week or month, dated by its first trading day; the last covers the period so far. */
+  bars: DailyBar[];
+  /** Lengths, in bars, of the fast and slow SMAs. */
+  smaPeriods: [number, number];
+  smaFastSeries: number[];
+  smaSlowSeries: number[];
+}
+
 /** Everything the home page shows about the tracked universe, from one scan. */
 export interface OverviewResponse {
   asOf: string | null;

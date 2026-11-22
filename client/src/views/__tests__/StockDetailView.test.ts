@@ -3,11 +3,14 @@ import { flushPromises, shallowMount, type VueWrapper } from "@vue/test-utils";
 import { createRouter, createMemoryHistory, createWebHistory } from "vue-router";
 import StockDetailView from "../StockDetailView.vue";
 import EpsChart from "../../components/EpsChart.vue";
+import PriceChart from "../../components/PriceChart.vue";
 import type { StockDetail } from "../../types";
 
 const fetchStockDetail = vi.fn();
+const fetchStockChart = vi.fn();
 vi.mock("../../api", () => ({
   fetchStockDetail: (...args: unknown[]) => fetchStockDetail(...args),
+  fetchStockChart: (...args: unknown[]) => fetchStockChart(...args),
 }));
 
 function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
@@ -88,6 +91,7 @@ function statValue(wrapper: VueWrapper, label: string): string | undefined {
 
 beforeEach(() => {
   fetchStockDetail.mockReset();
+  fetchStockChart.mockReset();
 });
 
 describe("StockDetailView financial cards", () => {
@@ -362,5 +366,83 @@ describe("StockDetailView back button", () => {
     await webRouter.push("/stock/AAPL");
     const wrapper = await mountWith(webRouter);
     expect(wrapper.find(".back-btn").text()).toBe("← Home");
+  });
+});
+
+describe("StockDetailView chart timeframes", () => {
+  const dailyBar = { date: "2026-11-20T00:00:00.000Z", open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 };
+  const weeklyBar = { date: "2026-11-16T00:00:00.000Z", open: 1, high: 3, low: 0.5, close: 2, volume: 50 };
+  const weeklyChart = {
+    timeframe: "weekly",
+    bars: [weeklyBar],
+    smaPeriods: [10, 30],
+    smaFastSeries: [1.8],
+    smaSlowSeries: [1.6],
+  };
+
+  beforeEach(async () => {
+    await router.replace("/breakout");
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ bars: [dailyBar] }));
+  });
+
+  function legendText(wrapper: VueWrapper) {
+    return wrapper.findAll(".legend-item").map((item) => item.text());
+  }
+
+  it("starts on the daily chart with the 50 and 150-day SMAs, without fetching another chart", async () => {
+    const wrapper = await mountView();
+    expect(wrapper.find(".timeframe-btn.active").text()).toBe("Daily");
+    expect(wrapper.findComponent(PriceChart).props()).toMatchObject({
+      bars: [dailyBar],
+      sma50Series: [190],
+      sma150Series: [180],
+    });
+    expect(legendText(wrapper)).toEqual(["50-day SMA", "150-day SMA"]);
+    expect(fetchStockChart).not.toHaveBeenCalled();
+  });
+
+  it("fetches and shows the weekly chart once, keeping the choice in the URL", async () => {
+    fetchStockChart.mockResolvedValue(weeklyChart);
+    const wrapper = await mountView();
+    const [daily, weekly] = wrapper.findAll(".timeframe-btn");
+    await weekly.trigger("click");
+    await flushPromises();
+
+    expect(fetchStockChart).toHaveBeenCalledWith("AAPL", "weekly");
+    expect(router.currentRoute.value.query.chart).toBe("weekly");
+    expect(wrapper.findComponent(PriceChart).props()).toMatchObject({
+      bars: [weeklyBar],
+      sma50Series: [1.8],
+      sma150Series: [1.6],
+    });
+    expect(legendText(wrapper)).toEqual(["10-week SMA", "30-week SMA"]);
+
+    await daily.trigger("click");
+    await weekly.trigger("click");
+    await flushPromises();
+    expect(fetchStockChart).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens on the timeframe in the URL", async () => {
+    fetchStockChart.mockResolvedValue({ ...weeklyChart, timeframe: "monthly" });
+    await router.push("/stock/AAPL?chart=monthly");
+    const wrapper = shallowMount(StockDetailView, { global: { plugins: [router] } });
+    await flushPromises();
+    expect(fetchStockChart).toHaveBeenCalledWith("AAPL", "monthly");
+    expect(wrapper.find(".timeframe-btn.active").text()).toBe("Monthly");
+    expect(legendText(wrapper)).toEqual(["10-month SMA", "30-month SMA"]);
+  });
+
+  it("shows a retry when a chart fails to load", async () => {
+    fetchStockChart.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce(weeklyChart);
+    const wrapper = await mountView();
+    await wrapper.findAll(".timeframe-btn")[1].trigger("click");
+    await flushPromises();
+    expect(wrapper.findComponent(PriceChart).exists()).toBe(false);
+    expect(wrapper.find(".chart-status").text()).toContain("boom");
+
+    await wrapper.find(".chart-status button").trigger("click");
+    await flushPromises();
+    expect(wrapper.findComponent(PriceChart).props("bars")).toEqual([weeklyBar]);
   });
 });

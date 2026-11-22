@@ -8,6 +8,7 @@ import { BreakoutContext, runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOU
 import { runSectorRotationScreen, SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { BENCHMARK_SYMBOL } from "./universe";
 import { sma } from "./indicators/movingAverage";
+import { resampleBars, Timeframe } from "./indicators/resample";
 import { rsRatings } from "./indicators/relativeStrength";
 import {
   BreakoutScanResponse,
@@ -19,6 +20,7 @@ import {
   SectorRotationScanResponse,
   StockCard,
   StockDetailResponse,
+  StockChartResponse,
   StocksResponse,
   SymbolHistory,
   VolatilityResponse,
@@ -53,6 +55,16 @@ const LOOKBACK_CALENDAR_DAYS = 550;
 const CHART_BARS = 120;
 const DETAIL_CHART_BARS = 252;
 const DETAIL_LOOKBACK_DAYS = 550;
+/**
+ * The detail page's longer-term charts: weekly shows ~3 years, monthly ~10,
+ * each fetched with enough extra history to warm up the 30-bar SMA. Both use
+ * 10 and 30-bar SMAs; on the weekly those are the daily's 50 and 150-day.
+ */
+const LONG_TERM_CHARTS: Record<Exclude<Timeframe, "daily">, { lookbackDays: number; visibleBars: number }> = {
+  weekly: { lookbackDays: 5 * 365, visibleBars: 156 },
+  monthly: { lookbackDays: 15 * 365, visibleBars: 120 },
+};
+const LONG_TERM_SMA_PERIODS: [number, number] = [10, 30];
 const MAX_STOCKS_PER_REQUEST = 24;
 
 const DATA_PROVIDER = process.env.DATA_PROVIDER ?? "fmp";
@@ -486,6 +498,43 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
     res.json(response);
   } catch (err) {
     console.error(`Stock detail failed for ${symbol}:`, err);
+    res.status(502).json({ error: "Failed to fetch stock data", message: (err as Error).message });
+  }
+});
+
+app.get("/api/stock/:symbol/chart", requireAuth, async (req, res) => {
+  const symbol = String(req.params.symbol).toUpperCase();
+  const timeframe = req.query.timeframe;
+  if (timeframe !== "weekly" && timeframe !== "monthly") {
+    res.status(400).json({ error: "timeframe must be weekly or monthly" });
+    return;
+  }
+  const { lookbackDays, visibleBars } = LONG_TERM_CHARTS[timeframe];
+  try {
+    const cacheKey = `chart:${timeframe}:${symbol}`;
+    let raw = getCached(cacheKey)?.[0];
+    if (!raw) {
+      raw = await provider.getDailyHistory(symbol, lookbackDays);
+      if (raw.bars.length > 0) setCache(cacheKey, [raw]);
+    }
+    if (raw.bars.length === 0) {
+      res.status(404).json({ error: `No data for ${symbol}` });
+      return;
+    }
+    const currency = getTickerCurrency(symbol) ?? getEtf(symbol)?.currency ?? null;
+    const bars = resampleBars(toMajorUnits(raw, currency).bars, timeframe);
+    const visibleCount = Math.min(bars.length, visibleBars);
+    const [fastPeriod, slowPeriod] = LONG_TERM_SMA_PERIODS;
+    const response: StockChartResponse = {
+      timeframe,
+      bars: bars.slice(-visibleCount),
+      smaPeriods: LONG_TERM_SMA_PERIODS,
+      smaFastSeries: buildSmaSeries(bars, fastPeriod, visibleCount),
+      smaSlowSeries: buildSmaSeries(bars, slowPeriod, visibleCount),
+    };
+    res.json(response);
+  } catch (err) {
+    console.error(`Stock ${timeframe} chart failed for ${symbol}:`, err);
     res.status(502).json({ error: "Failed to fetch stock data", message: (err as Error).message });
   }
 });

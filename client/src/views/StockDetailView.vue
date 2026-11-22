@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { fetchStockDetail } from "../api";
-import type { StockDetail } from "../types";
+import { fetchStockChart, fetchStockDetail } from "../api";
+import type { ChartTimeframe, StockChart, StockDetail } from "../types";
+import { useQueryParam } from "../composables/useQueryParam";
 import PriceChart from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
 import WatchlistMenu from "../components/WatchlistMenu.vue";
@@ -34,6 +35,67 @@ async function load() {
     loading.value = false;
   }
 }
+
+const TIMEFRAMES: { value: ChartTimeframe; label: string; unit: string }[] = [
+  { value: "daily", label: "Daily", unit: "day" },
+  { value: "weekly", label: "Weekly", unit: "week" },
+  { value: "monthly", label: "Monthly", unit: "month" },
+];
+
+/** The chart's timeframe, kept in the URL (`?chart=weekly`) so reloads and links keep it. */
+const timeframeParam = useQueryParam("chart", "daily");
+const timeframe = computed<ChartTimeframe>({
+  get: () => (TIMEFRAMES.some((t) => t.value === timeframeParam.value) ? (timeframeParam.value as ChartTimeframe) : "daily"),
+  set: (value) => (timeframeParam.value = value),
+});
+
+/** Weekly and monthly charts, fetched the first time each is picked. */
+const longTermCharts = ref<Partial<Record<StockChart["timeframe"], StockChart>>>({});
+const chartLoading = ref(false);
+const chartError = ref<string | null>(null);
+
+async function loadChart(tf: ChartTimeframe) {
+  if (tf === "daily" || longTermCharts.value[tf]) return;
+  chartLoading.value = true;
+  chartError.value = null;
+  try {
+    const chart = await fetchStockChart(symbol, tf);
+    longTermCharts.value = { ...longTermCharts.value, [tf]: chart };
+  } catch (err) {
+    if (timeframe.value === tf) chartError.value = err instanceof Error ? err.message : "Failed to load chart";
+  } finally {
+    if (timeframe.value === tf) chartLoading.value = false;
+  }
+}
+
+function selectTimeframe(tf: ChartTimeframe) {
+  timeframe.value = tf;
+  chartError.value = null;
+  chartLoading.value = false;
+  loadChart(tf);
+}
+
+/** What the price chart draws: the detail's daily bars, or a fetched weekly/monthly chart. */
+const chart = computed(() => {
+  const unit = TIMEFRAMES.find((t) => t.value === timeframe.value)!.unit;
+  if (timeframe.value === "daily") {
+    if (!data.value) return null;
+    return {
+      bars: data.value.bars,
+      fast: data.value.sma50Series,
+      slow: data.value.sma150Series,
+      labels: ["50-day SMA", "150-day SMA"],
+    };
+  }
+  const longTerm = longTermCharts.value[timeframe.value];
+  if (!longTerm) return null;
+  return {
+    bars: longTerm.bars,
+    fast: longTerm.smaFastSeries,
+    slow: longTerm.smaSlowSeries,
+    labels: longTerm.smaPeriods.map((n) => `${n}-${unit} SMA`),
+  };
+});
 
 /** Latest close — from the screen when the stock qualifies, otherwise the last bar. */
 const lastClose = computed(() => data.value?.details?.close ?? data.value?.bars.at(-1)?.close ?? null);
@@ -91,7 +153,10 @@ function back() {
   else router.push("/");
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadChart(timeframe.value);
+});
 </script>
 
 <template>
@@ -115,18 +180,38 @@ onMounted(load);
     </div>
 
     <template v-if="data">
-      <div class="chart-container">
-        <PriceChart
-          :bars="data.bars"
-          :sma50-series="data.sma50Series"
-          :sma150-series="data.sma150Series"
-          :height="500"
-        />
+      <div class="timeframes" role="group" aria-label="Chart timeframe">
+        <button
+          v-for="tf in TIMEFRAMES"
+          :key="tf.value"
+          class="timeframe-btn"
+          :class="{ active: timeframe === tf.value }"
+          :aria-pressed="timeframe === tf.value"
+          @click="selectTimeframe(tf.value)"
+        >
+          {{ tf.label }}
+        </button>
       </div>
 
-      <div class="legend">
-        <span class="legend-item"><span class="swatch swatch-sma50"></span>50-day SMA</span>
-        <span class="legend-item"><span class="swatch swatch-sma150"></span>150-day SMA</span>
+      <div class="chart-container">
+        <PriceChart
+          v-if="chart"
+          :bars="chart.bars"
+          :sma50-series="chart.fast"
+          :sma150-series="chart.slow"
+          :height="500"
+        />
+        <div v-else-if="chartError" class="chart-status error-state">
+          <p>Failed to load the {{ timeframe }} chart.</p>
+          <p class="detail">{{ chartError }}</p>
+          <button @click="loadChart(timeframe)">Retry</button>
+        </div>
+        <div v-else-if="chartLoading" class="chart-status loading">Loading chart...</div>
+      </div>
+
+      <div v-if="chart" class="legend">
+        <span class="legend-item"><span class="swatch swatch-sma50"></span>{{ chart.labels[0] }}</span>
+        <span class="legend-item"><span class="swatch swatch-sma150"></span>{{ chart.labels[1] }}</span>
       </div>
 
       <div v-if="data.details || data.financials || data.epsHistory.length > 0" class="stats-grid">
@@ -294,6 +379,41 @@ onMounted(load);
   color: var(--text-secondary);
   font-size: 14px;
   padding: 40px 0;
+}
+.timeframes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.timeframe-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.timeframe-btn:hover {
+  color: var(--text-primary);
+}
+.timeframe-btn.active {
+  color: var(--accent);
+  background: var(--border-subtle);
+}
+.chart-status {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 .chart-container {
   background: var(--surface);
