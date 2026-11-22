@@ -1,8 +1,13 @@
-# Stock Screener
+# StockWatch
 
-A local web app for screening and charting stocks against live end-of-day
+A web app for screening and charting stocks against live end-of-day
 data: Minervini-style breakouts, sector and industry group rotation, market
 breadth, earnings and volatility. Scans run on demand.
+
+It runs at [stockwatch.cloud](https://stockwatch.cloud), invite-only (see
+[Auth](#auth)). Built with Vue 3 and Vite, an Express API on Node 24,
+Postgres and [Better Auth](https://www.better-auth.com); market data comes
+from Yahoo Finance.
 
 ![Home dashboard in the matrix theme](docs/images/home.png)
 
@@ -96,37 +101,22 @@ The app has dark, light and matrix themes.
 
 ## Setup
 
+You'll need Node 24, pnpm 10 and Docker (or any Postgres 16).
+
 ```bash
 pnpm install
 pnpm --dir client install
+docker compose up -d   # Postgres 16 on localhost:5432, with a stockwatch_test database for the tests
+cp .env.sample .env    # then fill it in
 ```
 
-Create a `.env` file in the project root:
-
-```
-JWT_SECRET=some-random-secret
-```
-
-Market data comes from Yahoo Finance (free, no API key needed).
-`JWT_SECRET` is used to sign authentication tokens — use a long random
-string in production.
-
-### Password reset emails (optional)
-
-"Forgot password?" emails a one-time reset link through
-[Resend](https://resend.com). Add to `.env`:
-
-```
-RESEND_API_KEY=re_your_key
-EMAIL_FROM=Stock Screener <onboarding@resend.dev>
-APP_URL=http://localhost:5173
-```
-
-`APP_URL` is where the app is opened, used to build the link. Without your
-own verified domain, Resend's shared `onboarding@resend.dev` sender can only
-deliver to the email your Resend account is registered with — fine for
-personal use. Without these settings, reset emails are printed to the server
-console instead of sent, so the flow still works locally.
+Market data comes from Yahoo Finance (free, no API key needed). Everything
+in `.env.sample` is optional locally: without `DATABASE_URL` the app uses the
+docker compose database; without `BETTER_AUTH_SECRET` a development secret
+is used (Better Auth warns about it at startup); and without Resend settings
+emails (verification, password reset) are printed to the server console
+instead of sent, so every flow still works. Without `ALLOWED_EMAILS`, anyone
+can sign up locally.
 
 ## Running
 
@@ -135,34 +125,76 @@ pnpm run dev
 ```
 
 This starts the Express API server (port 3001) and the Vite dev server
-(port 5173) together. Open `http://localhost:5173` in a browser — you'll
-be prompted to register or log in before accessing the screens.
+(port 5173) together. Open `http://localhost:5173` in a browser; you'll
+be prompted to sign up or log in before accessing the screens.
 
 ## Auth
 
-The app uses email/password authentication with JWT tokens. Register an
-account on first use. Sessions last 7 days. Passwords can be changed from the
-Account page, or reset from the login screen via an emailed link; either
-signs out every other session. User data is stored in a
-local SQLite database (`data/screener.db`, gitignored).
+Sign-in is handled by [Better Auth](https://www.better-auth.com): email and
+password, plus Google and GitHub when their credentials are set. Sessions are
+httpOnly cookies that last 7 days, extended while you use the app, and can
+be signed out server-side.
+
+- **Invite list:** only emails in `ALLOWED_EMAILS` can sign up or sign in
+  (any method). Taking an email off the list locks that account out at its
+  next sign-in. Sign-ups from other emails get the same "check your email"
+  response as real ones, so the list can't be probed.
+- **Email verification:** password accounts must verify their email before
+  the first sign-in, so nobody can claim an invited address first.
+- **Linking:** signing in with Google or GitHub under an existing account's
+  verified email links to that account; you can also connect providers from
+  the Account page.
+- **Passwords** are hashed with scrypt. Resetting one (by emailed link)
+  signs out every session; changing one signs out every other session.
+- **Rate limiting** of the auth endpoints is on in production.
+
+For Google and GitHub, create OAuth apps with these callback URLs (swap in
+`http://localhost:5173` for local development):
+
+- Google (Cloud Console → APIs & Services → Credentials → OAuth client ID,
+  type "Web application"): `https://stockwatch.cloud/api/auth/callback/google`
+- GitHub (Settings → Developer settings → OAuth Apps):
+  `https://stockwatch.cloud/api/auth/callback/github`
+
+Then set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and
+`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`.
 
 ## Database
 
-Users, their watchlists and the tracked ticker list live in
-`data/screener.db` (gitignored).
+Users, sessions, watchlists, tickers and ETFs live in Postgres
+(`DATABASE_URL`). The schema is migrated automatically when the server starts
+(`src/migrate.ts`; `pnpm run db:migrate` runs it on its own): Better Auth's
+tables, then the app's migrations, each applied once and tracked in
+`schema_migrations`. Add a new migration rather than editing one that has
+shipped.
 
-- **Seeding:** a fresh database is seeded from `src/seed/tickers.json` —
-  every ticker with its name, sector, sub-sector and currency. Seeding only
-  happens when the table is first created; an existing database is never
-  touched.
+- **Seeding:** the first migration seeds the tickers table from
+  `src/seed/tickers.json` (every ticker with its name, sector, sub-sector,
+  currency and custom group) and the ETFs from the curated list in
+  `src/etfs.ts`. An existing database is never re-seeded.
 - **Updating the seed:** after changing the ticker list in the app, run
   `pnpm run db:export-seed` and commit `src/seed/tickers.json` so new setups
   start from the same list. User accounts and watchlists are never exported.
-- **Backups:** `pnpm run db:backup` writes a consistent snapshot (tickers,
-  users and watchlists) to `data/backups/`, safe while the server is running. To
-  restore, stop the server and copy a backup over `data/screener.db`.
+- **Backups:** `pnpm run db:backup` writes a `pg_dump` snapshot to
+  `data/backups/`, safe while the server is running. Restore into an empty
+  database with `pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" <file>`.
+  Production takes one nightly (see [deploy/README.md](deploy/README.md)).
+- **Importing the old SQLite database:** `pnpm run db:import-sqlite
+  [path/to/screener.db]` copies tickers and ETFs over, and adds each old
+  account's watchlists to the Postgres account with the same email. Sign up
+  first (passwords aren't carried over), then run it.
+
+## Deployment
+
+Pushes to `main` deploy to [stockwatch.cloud](https://stockwatch.cloud) once
+the tests pass, through GitHub Actions (`.github/workflows/deploy.yml`). Pull
+requests run the tests only. See [deploy/README.md](deploy/README.md) for how
+the server is set up.
 
 ## Tests
+
+The server tests need the docker compose Postgres (or `TEST_DATABASE_URL`);
+each test file gets its own throwaway database on that server.
 
 ```bash
 pnpm test               # server: indicators, screens, data, auth, watchlists

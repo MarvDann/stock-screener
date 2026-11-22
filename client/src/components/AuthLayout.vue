@@ -2,6 +2,7 @@
 import { onMounted } from "vue";
 import { useTheme } from "../composables/useTheme";
 import ThemeSwitcher from "./ThemeSwitcher.vue";
+import BrandLogo from "./BrandLogo.vue";
 
 defineProps<{ subtitle: string }>();
 
@@ -13,7 +14,7 @@ onMounted(initTheme);
   <div class="auth-page">
     <ThemeSwitcher class="theme-toggle" />
     <div class="auth-card">
-      <h1 class="auth-title">Stock Screener</h1>
+      <h1 class="auth-title"><BrandLogo size="lg" /></h1>
       <p class="auth-subtitle">{{ subtitle }}</p>
       <slot />
     </div>
@@ -48,10 +49,8 @@ onMounted(initTheme);
 }
 .auth-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-align: center;
+  display: flex;
+  justify-content: center;
 }
 .auth-subtitle {
   margin: 0 0 8px;

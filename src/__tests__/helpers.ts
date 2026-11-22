@@ -1,6 +1,6 @@
-import jwt from "jsonwebtoken";
-import db from "../db";
-import { JWT_SECRET } from "../jwtSecret";
+import { betterAuth } from "better-auth";
+import { testUtils } from "better-auth/plugins";
+import { authOptions } from "../auth";
 import { DailyBar } from "../types";
 
 export function makeBar(overrides: Partial<DailyBar> = {}): DailyBar {
@@ -28,8 +28,13 @@ export function makeBars(count: number, base: Partial<DailyBar> = {}): DailyBar[
   );
 }
 
-/** Inserts a user and returns a valid login token for them (requireAuth checks the user exists). */
-export function createTestUser(email = `user-${Math.random().toString(36).slice(2)}@example.com`) {
-  const id = Number(db.prepare("INSERT INTO users (email, password_hash) VALUES (?, 'x')").run(email).lastInsertRowid);
-  return { id, email, token: jwt.sign({ id, email, tv: 0 }, JWT_SECRET) };
+// Same secret and database as the app's auth, so its session cookies pass requireAuth.
+const testAuth = betterAuth({ ...authOptions, plugins: [testUtils()] });
+
+/** Saves a verified user and signs them in; send `cookie` as the Cookie header to make requests as them. */
+export async function createTestUser(email = `user-${Math.random().toString(36).slice(2)}@example.com`) {
+  const { test } = await testAuth.$context;
+  const user = await test.saveUser(test.createUser({ email, emailVerified: true }));
+  const { headers } = await test.login({ userId: user.id });
+  return { id: user.id, email, cookie: headers.get("cookie")! };
 }

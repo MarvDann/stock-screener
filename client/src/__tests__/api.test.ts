@@ -4,6 +4,10 @@ const routerPushMock = vi.fn();
 vi.mock("../router", () => ({
   default: { push: routerPushMock },
 }));
+const clearSessionCacheMock = vi.fn();
+vi.mock("../auth", () => ({
+  clearSessionCache: () => clearSessionCacheMock(),
+}));
 
 function jsonResponse(status: number, body: unknown): Response {
   return {
@@ -15,46 +19,19 @@ function jsonResponse(status: number, body: unknown): Response {
 
 describe("api", () => {
   beforeEach(() => {
-    localStorage.clear();
     routerPushMock.mockClear();
+    clearSessionCacheMock.mockClear();
     vi.unstubAllGlobals();
   });
 
-  it("isAuthenticated reflects whether a token is stored", async () => {
-    const { isAuthenticated } = await import("../api");
-    expect(isAuthenticated()).toBe(false);
-    localStorage.setItem("token", "abc");
-    expect(isAuthenticated()).toBe(true);
-  });
-
-  it("clearToken removes the stored token", async () => {
-    localStorage.setItem("token", "abc");
-    const { clearToken, isAuthenticated } = await import("../api");
-    clearToken();
-    expect(isAuthenticated()).toBe(false);
-  });
-
-  it("sends no Authorization header when unauthenticated", async () => {
+  it("sends the session cookie and no Authorization header", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { triggered: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     const { fetchBreakout } = await import("../api");
     await fetchBreakout();
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/breakout", { headers: {} });
-  });
-
-  it("attaches a bearer token when authenticated", async () => {
-    localStorage.setItem("token", "my-token");
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { results: [] }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { fetchSectorRotation } = await import("../api");
-    await fetchSectorRotation();
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/sector-rotation", {
-      headers: { Authorization: "Bearer my-token" },
-    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/breakout", { headers: {}, credentials: "same-origin" });
   });
 
   it("URL-encodes the symbol for stock detail requests", async () => {
@@ -64,7 +41,7 @@ describe("api", () => {
     const { fetchStockDetail } = await import("../api");
     await fetchStockDetail("BRK/A");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/stock/BRK%2FA", { headers: {} });
+    expect(fetchMock).toHaveBeenCalledWith("/api/stock/BRK%2FA", { headers: {}, credentials: "same-origin" });
   });
 
   it("resolves with the parsed JSON body on success", async () => {
@@ -84,14 +61,13 @@ describe("api", () => {
     );
   });
 
-  it("clears the token, redirects to login, and throws on 401", async () => {
-    localStorage.setItem("token", "my-token");
+  it("forgets the session, redirects to login, and throws on 401", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(401, {})));
 
-    const { fetchBreakout, isAuthenticated } = await import("../api");
+    const { fetchBreakout } = await import("../api");
     await expect(fetchBreakout()).rejects.toThrow("Session expired — please log in again");
 
-    expect(isAuthenticated()).toBe(false);
+    expect(clearSessionCacheMock).toHaveBeenCalled();
     expect(routerPushMock).toHaveBeenCalledWith("/login");
   });
 
@@ -124,15 +100,5 @@ describe("api", () => {
 
     const { fetchBreakout } = await import("../api");
     await expect(fetchBreakout()).rejects.toThrow("Request failed (404)");
-  });
-
-  it("reads the signed-in email from the stored token", async () => {
-    const { currentUserEmail, setToken } = await import("../api");
-    expect(currentUserEmail()).toBeNull();
-    const payload = btoa(JSON.stringify({ id: 1, email: "me@example.com" })).replace(/=+$/, "");
-    setToken(`header.${payload}.signature`);
-    expect(currentUserEmail()).toBe("me@example.com");
-    setToken("not-a-jwt");
-    expect(currentUserEmail()).toBeNull();
   });
 });

@@ -20,7 +20,7 @@ describe("createMailer", () => {
 
   it("sends through Resend's API when configured", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    const mailer = createMailer({ RESEND_API_KEY: "re_test", EMAIL_FROM: "Screener <hi@screener.test>" });
+    const mailer = createMailer({ RESEND_API_KEY: "re_test", EMAIL_FROM: "StockWatch <hi@stockwatch.test>" });
     expect(mailer.configured).toBe(true);
     await mailer.send(message);
 
@@ -28,7 +28,7 @@ describe("createMailer", () => {
     expect(url).toBe("https://api.resend.com/emails");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer re_test");
     expect(JSON.parse(init.body as string)).toEqual({
-      from: "Screener <hi@screener.test>",
+      from: "StockWatch <hi@stockwatch.test>",
       to: ["me@example.com"],
       subject: "Hi",
       text: "Plain body",
@@ -38,7 +38,7 @@ describe("createMailer", () => {
 
   it("throws when Resend rejects the email", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("domain not verified", { status: 403 }));
-    const mailer = createMailer({ RESEND_API_KEY: "re_test", EMAIL_FROM: "hi@screener.test" });
+    const mailer = createMailer({ RESEND_API_KEY: "re_test", EMAIL_FROM: "hi@stockwatch.test" });
     await expect(mailer.send(message)).rejects.toThrow("Resend responded 403: domain not verified");
   });
 });

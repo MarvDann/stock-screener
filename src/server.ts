@@ -24,13 +24,15 @@ import {
   SymbolHistory,
   VolatilityResponse,
 } from "./types";
-import "./db";
-import authRouter from "./auth";
+import { toNodeHandler } from "better-auth/node";
+import { auth, authProvidersRouter } from "./auth";
+import { migrate } from "./migrate";
 import { requireAuth } from "./middleware/requireAuth";
 import { clearCache, getCached, setCache } from "./cache";
 import {
   backfillProfiles,
   createTickersRouter,
+  loadTickers,
   getCurrencyMap,
   getNameMap,
   getTickerCurrency,
@@ -40,15 +42,19 @@ import {
   normalizeSymbol,
 } from "./tickers";
 import { displayCurrency, toMajorUnits } from "./currency";
-import { createEtfsRouter, getEtf, listEtfs } from "./etfs";
+import { createEtfsRouter, getEtf, listEtfs, loadEtfs } from "./etfs";
 import { createWatchlistsRouter } from "./watchlists";
 import { computeGroupStats, computeMarketOverview } from "./screens/marketOverview";
 import { VOLATILITY_INDICES, summarizeVolatility } from "./screens/volatility";
 import { rankIndustryGroups } from "./screens/industryGroups";
 
 const app = express();
+// Better Auth reads its own request bodies, so it's mounted before express.json().
+app.all("/api/auth/{*path}", toNodeHandler(auth));
 app.use(express.json());
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
+// Production binds to localhost only (HOST=127.0.0.1): nginx is the way in.
+const HOST = process.env.HOST;
 // ~375 trading days: a year for the 52-week checks and RS Rating, plus room for 65-week bases.
 const LOOKBACK_CALENDAR_DAYS = 550;
 const CHART_BARS = 120;
@@ -75,7 +81,7 @@ function buildSmaSeries(bars: SymbolHistory["bars"], period: number, visibleCoun
 }
 
 
-app.use(authRouter);
+app.use(authProvidersRouter);
 app.use(
   createTickersRouter({
     lookupTicker: async (symbol) => {
@@ -542,11 +548,22 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`API server listening on http://localhost:${PORT}`);
-  backfillProfiles(getTickerProfile)
-    .then(({ updated, failed }) => {
-      if (updated || failed) console.log(`Profile backfill: ${updated} updated, ${failed} failed (retried next start)`);
-    })
-    .catch((err) => console.error("Profile backfill failed:", err));
+async function start() {
+  await migrate();
+  await Promise.all([loadTickers(), loadEtfs()]);
+  const onListening = () => {
+    console.log(`API server listening on http://${HOST ?? "localhost"}:${PORT}`);
+    backfillProfiles(getTickerProfile)
+      .then(({ updated, failed }) => {
+        if (updated || failed) console.log(`Profile backfill: ${updated} updated, ${failed} failed (retried next start)`);
+      })
+      .catch((err) => console.error("Profile backfill failed:", err));
+  };
+  if (HOST) app.listen(PORT, HOST, onListening);
+  else app.listen(PORT, onListening);
+}
+
+start().catch((err) => {
+  console.error("Server failed to start:", err);
+  process.exit(1);
 });

@@ -15,7 +15,7 @@ import WatchlistsView from "../views/WatchlistsView.vue";
 import EarningsView from "../views/EarningsView.vue";
 import VolatilityView from "../views/VolatilityView.vue";
 import IndustryGroupsView from "../views/IndustryGroupsView.vue";
-import { isAuthenticated } from "../api";
+import { getSessionUser } from "../auth";
 
 // `title` names a page for the stock detail page's back button.
 const router = createRouter({
@@ -41,11 +41,15 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to) => {
-  if (!to.meta.public && !isAuthenticated()) {
-    return { name: "login" };
+// The session is cached after the first lookup, so this only waits on the server once per sign-in.
+router.beforeEach(async (to) => {
+  if (to.meta.public && to.name !== "login") return;
+  const user = await getSessionUser();
+  if (!to.meta.public && !user) {
+    // A failed email verification link lands on "/?error=..."; keep the error so the login page can show it.
+    return { name: "login", query: typeof to.query.error === "string" ? { error: to.query.error } : {} };
   }
-  if (to.name === "login" && isAuthenticated()) {
+  if (to.name === "login" && user) {
     return { name: "home" };
   }
 });

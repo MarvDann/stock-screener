@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from "vue-router";
 import { computed, onMounted } from "vue";
-import { isAuthenticated, clearToken } from "./api";
+import { authClient, clearSessionCache } from "./auth";
 import { useTheme } from "./composables/useTheme";
 import ThemeSwitcher from "./components/ThemeSwitcher.vue";
+import BrandLogo from "./components/BrandLogo.vue";
 import { resetStockCardCache } from "./composables/useStockCards";
 import { resetCachedResources } from "./composables/useCachedResource";
 import { cacheClear } from "./utils/persistentCache";
@@ -17,8 +18,9 @@ const showSidebar = computed(() => !route.meta.public);
 
 onMounted(initTheme);
 
-function logout() {
-  clearToken();
+async function logout() {
+  await authClient.signOut().catch(() => undefined);
+  clearSessionCache();
   resetStockCardCache();
   resetCachedResources();
   void cacheClear();
@@ -29,7 +31,7 @@ function logout() {
 <template>
   <div v-if="showSidebar" class="app-shell">
     <nav class="sidebar">
-      <RouterLink to="/" class="brand">Stock Screener</RouterLink>
+      <RouterLink to="/" class="brand" aria-label="StockWatch home"><BrandLogo /></RouterLink>
       <RouterLink to="/" class="nav-link">Home</RouterLink>
       <RouterLink to="/stock-charts" class="nav-link">Stock Charts</RouterLink>
       <RouterLink to="/etfs" class="nav-link">ETFs</RouterLink>
@@ -77,11 +79,8 @@ function logout() {
 .brand {
   display: block;
   text-decoration: none;
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0 0 16px;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
+  margin: 2px 0 18px;
+  padding: 0 4px;
 }
 .nav-link {
   color: var(--text-secondary);

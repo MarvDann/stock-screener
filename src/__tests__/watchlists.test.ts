@@ -11,19 +11,19 @@ app.use(createWatchlistsRouter({ isKnownSymbol: (symbol) => KNOWN.has(symbol) })
 
 let server: ReturnType<typeof app.listen>;
 let baseUrl: string;
-const alice = createTestUser();
-const bob = createTestUser();
+const alice = await createTestUser();
+const bob = await createTestUser();
 
-function request(method: string, path: string, body?: unknown, token = alice.token) {
+function request(method: string, path: string, body?: unknown, cookie = alice.cookie) {
   return fetch(`${baseUrl}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Cookie: cookie },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
 
-async function create(name: string, token = alice.token): Promise<{ id: number; name: string; symbols: string[] }> {
-  const res = await request("POST", "/api/watchlists", { name }, token);
+async function create(name: string, cookie = alice.cookie): Promise<{ id: number; name: string; symbols: string[] }> {
+  const res = await request("POST", "/api/watchlists", { name }, cookie);
   expect(res.status).toBe(201);
   return res.json();
 }
@@ -134,7 +134,7 @@ describe("watchlists", () => {
     await request("POST", `/api/watchlists/${list.id}/symbols`, { symbol: "SPY" });
 
     expect((await request("DELETE", `/api/watchlists/${list.id}`)).status).toBe(204);
-    expect(listWatchlists(alice.id).map((w) => w.name)).not.toContain("Doomed");
+    expect((await listWatchlists(alice.id)).map((w) => w.name)).not.toContain("Doomed");
     expect((await request("DELETE", `/api/watchlists/${list.id}`)).status).toBe(404);
 
     // A new list can reuse the name, and starts empty.
@@ -144,9 +144,9 @@ describe("watchlists", () => {
   it("keeps each user's watchlists private", async () => {
     const mine = await create("Private");
     // Bob can use the same name, since names are only unique per user.
-    await create("Private", bob.token);
+    await create("Private", bob.cookie);
 
-    const bobsView = await request("GET", "/api/watchlists", undefined, bob.token);
+    const bobsView = await request("GET", "/api/watchlists", undefined, bob.cookie);
     expect((await bobsView.json()).watchlists.map((w: { name: string }) => w.name)).toEqual(["Private"]);
 
     for (const [method, path, body] of [
@@ -155,10 +155,10 @@ describe("watchlists", () => {
       ["POST", `/api/watchlists/${mine.id}/symbols`, { symbol: "AAPL" }],
       ["DELETE", `/api/watchlists/${mine.id}/symbols/AAPL`, undefined],
     ] as const) {
-      const res = await request(method, path, body, bob.token);
+      const res = await request(method, path, body, bob.cookie);
       expect(res.status).toBe(404);
     }
-    expect(listWatchlists(alice.id).find((w) => w.id === mine.id)).toEqual({ id: mine.id, name: "Private", symbols: [] });
+    expect((await listWatchlists(alice.id)).find((w) => w.id === mine.id)).toEqual({ id: mine.id, name: "Private", symbols: [] });
   });
 
   it("returns 404 for non-numeric ids", async () => {

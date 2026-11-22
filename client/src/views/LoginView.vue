@@ -1,43 +1,92 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import AuthLayout from "../components/AuthLayout.vue";
-import { setToken } from "../api";
+import {
+  PROVIDER_LABELS,
+  type SocialProvider,
+  authClient,
+  authErrorMessage,
+  clearSessionCache,
+  fetchAuthProviders,
+  oauthErrorMessage,
+} from "../auth";
 
 const router = useRouter();
+const route = useRoute();
 const isRegister = ref(false);
 const email = ref("");
 const password = ref("");
-const error = ref("");
+// An OAuth sign-in that failed comes back here with ?error=<code>.
+const error = ref(typeof route.query.error === "string" ? oauthErrorMessage(route.query.error) : "");
+const notice = ref(route.query.reset ? "Password changed — log in with your new password." : "");
 const loading = ref(false);
+const providers = ref<SocialProvider[]>([]);
+
+onMounted(async () => {
+  providers.value = await fetchAuthProviders();
+});
+
+function toggleMode() {
+  isRegister.value = !isRegister.value;
+  error.value = "";
+  notice.value = "";
+}
+
+async function signedIn() {
+  clearSessionCache();
+  await router.push("/");
+}
 
 async function submit() {
   error.value = "";
+  notice.value = "";
   loading.value = true;
-
-  const endpoint = isRegister.value ? "/api/auth/register" : "/api/auth/login";
-
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.value, password: password.value }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      error.value = data.error || "Something went wrong";
+    if (isRegister.value) {
+      const { data, error: err } = await authClient.signUp.email({
+        email: email.value.trim(),
+        password: password.value,
+        // The server requires a name; the email's local part stands in for one.
+        name: email.value.trim().split("@")[0],
+        callbackURL: "/",
+      });
+      if (err) {
+        error.value = authErrorMessage(err, "Registration failed");
+      } else if (data?.token) {
+        await signedIn();
+      } else {
+        notice.value = "Check your email to verify your account, then log in.";
+        isRegister.value = false;
+        password.value = "";
+      }
       return;
     }
 
-    setToken(data.token);
-    router.push("/");
+    const { error: err } = await authClient.signIn.email({
+      email: email.value.trim(),
+      password: password.value,
+      callbackURL: "/",
+    });
+    if (err?.code === "EMAIL_NOT_VERIFIED") {
+      notice.value = "Your email isn't verified yet — we've sent you a new verification link.";
+    } else if (err) {
+      error.value = authErrorMessage(err, "Log in failed");
+    } else {
+      await signedIn();
+    }
   } catch {
     error.value = "Network error";
   } finally {
     loading.value = false;
   }
+}
+
+async function socialSignIn(provider: SocialProvider) {
+  error.value = "";
+  // On success the browser leaves for the provider's sign-in page.
+  const { error: err } = await authClient.signIn.social({ provider, callbackURL: "/", errorCallbackURL: "/login" });
+  if (err) error.value = authErrorMessage(err, `Couldn't start ${PROVIDER_LABELS[provider]} sign-in`);
 }
 </script>
 
@@ -45,6 +94,7 @@ async function submit() {
   <AuthLayout :subtitle="isRegister ? 'Create an account' : 'Sign in to continue'">
     <form class="form" @submit.prevent="submit">
       <p v-if="error" class="form-error">{{ error }}</p>
+      <p v-if="notice" class="form-success">{{ notice }}</p>
 
       <label class="field">
         <span class="field-label">Email</span>
@@ -76,12 +126,57 @@ async function submit() {
         {{ loading ? "..." : isRegister ? "Register" : "Log in" }}
       </button>
 
+      <template v-if="providers.length">
+        <p class="divider"><span>or</span></p>
+        <button
+          v-for="provider in providers"
+          :key="provider"
+          type="button"
+          class="social-btn"
+          :data-provider="provider"
+          @click="socialSignIn(provider)"
+        >
+          Continue with {{ PROVIDER_LABELS[provider] }}
+        </button>
+      </template>
+
       <p class="form-footer">
         {{ isRegister ? "Already have an account?" : "Don't have an account?" }}
-        <a href="#" @click.prevent="isRegister = !isRegister; error = ''">
+        <a href="#" @click.prevent="toggleMode">
           {{ isRegister ? "Log in" : "Register" }}
         </a>
       </p>
     </form>
   </AuthLayout>
 </template>
+
+<style scoped>
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+.social-btn {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 14px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.social-btn:hover {
+  border-color: var(--accent);
+}
+</style>

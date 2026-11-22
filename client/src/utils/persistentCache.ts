@@ -4,7 +4,9 @@
  * IndexedDB is unavailable or fails — private browsing, a full quota, tests —
  * so callers can treat it as a best-effort cache.
  */
-const DB_NAME = "stock-screener-cache";
+const DB_NAME = "stockwatch-cache";
+/** The cache's name before the app was renamed StockWatch; deleted so it doesn't linger. */
+const OLD_DB_NAME = "stock-screener-cache";
 /** Bump when the shape of anything cached changes; upgrading drops all old entries. */
 const SCHEMA_VERSION = 1;
 const STORE = "entries";
@@ -15,6 +17,7 @@ function openDb(): Promise<IDBDatabase | null> {
   dbPromise ??= new Promise((resolve) => {
     if (typeof indexedDB === "undefined") return resolve(null);
     try {
+      indexedDB.deleteDatabase(OLD_DB_NAME);
       const request = indexedDB.open(DB_NAME, SCHEMA_VERSION);
       request.onupgradeneeded = () => {
         const db = request.result;

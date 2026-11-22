@@ -48,17 +48,18 @@ describe("etfs router", () => {
 
   let server: ReturnType<typeof app.listen>;
   let baseUrl: string;
-  const { token } = createTestUser();
+  let cookie: string;
 
   function request(method: string, path: string, body?: unknown) {
     return fetch(`${baseUrl}${path}`, {
       method,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", Cookie: cookie },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   }
 
   beforeAll(async () => {
+    ({ cookie } = await createTestUser());
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
         const addr = server.address();

@@ -1,24 +1,27 @@
 /**
- * Writes a consistent snapshot of the SQLite database (tickers, users and watchlists) to
- * data/backups/screener-<timestamp>.db. Uses SQLite's online backup, so it's
- * safe while the server is running (a plain file copy can miss WAL writes).
+ * Writes a snapshot of the Postgres database (tickers, ETFs, users and
+ * watchlists) to data/backups/stockwatch-<timestamp>.dump with pg_dump, which
+ * is safe while the server is running.
  *
- * Restore by stopping the server and copying a backup over data/screener.db.
+ * Restore into an empty database with:
+ *   pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" <file>
  */
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
-import db, { DATA_DIR } from "../db";
 
-async function main() {
-  const dir = path.join(DATA_DIR, "backups");
-  fs.mkdirSync(dir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const dest = path.join(dir, `screener-${stamp}.db`);
-  await db.backup(dest);
+const DEFAULT_DATABASE_URL = "postgres://stockwatch:stockwatch@localhost:5432/stockwatch";
+const dir = process.env.BACKUP_DIR ?? path.join(__dirname, "..", "..", "data", "backups");
+
+fs.mkdirSync(dir, { recursive: true });
+const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+const dest = path.join(dir, `stockwatch-${stamp}.dump`);
+try {
+  execFileSync("pg_dump", ["--format=custom", `--file=${dest}`, process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL], {
+    stdio: "inherit",
+  });
   console.log(`Backed up to ${path.relative(process.cwd(), dest)}`);
-}
-
-main().catch((err) => {
-  console.error("Backup failed:", err);
+} catch (err) {
+  console.error("Backup failed (is pg_dump installed and on PATH?):", (err as Error).message);
   process.exit(1);
-});
+}

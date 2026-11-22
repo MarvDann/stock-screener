@@ -92,7 +92,7 @@ async function saveEdit(ticker: Ticker) {
 }
 
 async function remove(ticker: Ticker) {
-  if (!confirm(`Remove ${ticker.symbol} from the screener?`)) return;
+  if (!confirm(`Remove ${ticker.symbol} from your tracked tickers?`)) return;
   rowError.value = null;
   try {
     await deleteTicker(ticker.symbol);

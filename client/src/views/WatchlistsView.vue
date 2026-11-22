@@ -59,7 +59,7 @@ const items = computed(() => (selected.value?.symbols ?? []).map((symbol) => ({ 
 const pager = usePagination(items, CARDS_PER_PAGE, useQueryPage());
 const { pageCards, loading: cardsLoading, error: cardsError, warnings, load: loadPageCards } = useStockCards(pager.paged);
 
-/** Symbols on this page that came back without a chart, e.g. a ticker since dropped from the screener. */
+/** Symbols on this page that came back without a chart, e.g. a ticker since dropped from the tracked list. */
 const uncharted = computed(() => {
   if (cardsLoading.value || cardsError.value) return [];
   const charted = new Set(pageCards.value.map((c) => c.symbol));

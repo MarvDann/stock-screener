@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import db from "./db";
+import { execute, query, Queryable } from "./db";
 import { requireAuth } from "./middleware/requireAuth";
 import type { TickerProfile } from "./types";
 import SEED_TICKERS from "./seed/tickers.json";
@@ -29,48 +29,33 @@ export const SYMBOL_PATTERN = /^[A-Z0-9^][A-Z0-9.=-]{0,14}$/;
 const MAX_NAME_LENGTH = 100;
 const MAX_GROUP_LENGTH = 50;
 
-const tableExists = db
-  .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'tickers'")
-  .get();
+const TICKER_COLUMNS = "symbol, name, sector, industry, currency, custom_group AS \"customGroup\"";
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tickers (
-    symbol TEXT PRIMARY KEY,
-    name TEXT NOT NULL DEFAULT '',
-    sector TEXT,
-    industry TEXT,
-    currency TEXT,
-    custom_group TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
+/**
+ * Every tracked ticker by symbol. Read on nearly every request, so it's kept
+ * in memory: loaded at startup by loadTickers() and updated alongside each
+ * write below (this server is the only writer).
+ */
+let tickers = new Map<string, Ticker>();
 
-// Tables created before these columns existed get them added in place.
-const columns = (db.prepare("PRAGMA table_info(tickers)").all() as { name: string }[]).map((c) => c.name);
-if (!columns.includes("sector")) db.exec("ALTER TABLE tickers ADD COLUMN sector TEXT");
-if (!columns.includes("industry")) db.exec("ALTER TABLE tickers ADD COLUMN industry TEXT");
-if (!columns.includes("currency")) db.exec("ALTER TABLE tickers ADD COLUMN currency TEXT");
-if (!columns.includes("custom_group")) db.exec("ALTER TABLE tickers ADD COLUMN custom_group TEXT");
+/** Seeds a fresh tickers table from the seed file, a snapshot of a real list (`pnpm run db:export-seed`). */
+export async function seedTickers(client: Queryable): Promise<void> {
+  for (const t of SEED_TICKERS as Partial<Ticker>[]) {
+    await client.query(
+      "INSERT INTO tickers (symbol, name, sector, industry, currency, custom_group) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING",
+      [t.symbol, t.name, t.sector, t.industry, t.currency, t.customGroup ?? null]
+    );
+  }
+}
 
-const TICKER_COLUMNS = "symbol, name, sector, industry, currency, custom_group AS customGroup";
-
-// Seed only when the table is first created, so deleting every ticker
-// doesn't bring the list back on the next restart. The seed file is a
-// snapshot of a real ticker list, profiles included — refresh it with
-// `pnpm run db:export-seed`.
-if (!tableExists) {
-  const insert = db.prepare(
-    "INSERT OR IGNORE INTO tickers (symbol, name, sector, industry, currency, custom_group) VALUES (?, ?, ?, ?, ?, ?)"
-  );
-  db.transaction(() => {
-    for (const t of SEED_TICKERS as Partial<Ticker>[]) {
-      insert.run(t.symbol, t.name, t.sector, t.industry, t.currency, t.customGroup ?? null);
-    }
-  })();
+/** (Re)loads the ticker list from the database; call once at startup, after migrating. */
+export async function loadTickers(): Promise<void> {
+  const rows = await query<Ticker>(`SELECT ${TICKER_COLUMNS} FROM tickers ORDER BY symbol`);
+  tickers = new Map(rows.map((t) => [t.symbol, t]));
 }
 
 export function listTickers(): Ticker[] {
-  return db.prepare(`SELECT ${TICKER_COLUMNS} FROM tickers ORDER BY symbol`).all() as Ticker[];
+  return [...tickers.values()].sort((a, b) => (a.symbol < b.symbol ? -1 : a.symbol > b.symbol ? 1 : 0));
 }
 
 export function listSymbols(): string[] {
@@ -86,13 +71,11 @@ export function getCurrencyMap(): Record<string, string | null> {
 }
 
 export function getTickerCurrency(symbol: string): string | null {
-  const row = db.prepare("SELECT currency FROM tickers WHERE symbol = ?").get(symbol) as { currency: string | null } | undefined;
-  return row?.currency ?? null;
+  return tickers.get(symbol)?.currency ?? null;
 }
 
 export function getTickerName(symbol: string): string {
-  const row = db.prepare("SELECT name FROM tickers WHERE symbol = ?").get(symbol) as { name: string } | undefined;
-  return row?.name ?? "";
+  return tickers.get(symbol)?.name ?? "";
 }
 
 /**
@@ -103,27 +86,32 @@ export async function backfillProfiles(
   lookup: (symbol: string) => Promise<TickerProfile>,
   { batchSize = 5, delayMs = 250 }: { batchSize?: number; delayMs?: number } = {}
 ): Promise<{ updated: number; failed: number }> {
-  const pending = (
-    db.prepare("SELECT symbol FROM tickers WHERE sector IS NULL OR currency IS NULL ORDER BY symbol").all() as {
-      symbol: string;
-    }[]
-  ).map((r) => r.symbol);
-  const update = db.prepare("UPDATE tickers SET sector = ?, industry = ?, currency = ? WHERE symbol = ?");
+  const pending = listTickers()
+    .filter((t) => t.sector === null || t.currency === null)
+    .map((t) => t.symbol);
   let updated = 0;
   let failed = 0;
 
   for (let i = 0; i < pending.length; i += batchSize) {
     const batch = pending.slice(i, i + batchSize);
     const results = await Promise.allSettled(batch.map((symbol) => lookup(symbol)));
-    results.forEach((result, j) => {
+    for (const [j, result] of results.entries()) {
       if (result.status === "fulfilled") {
-        // A ticker deleted mid-run simply matches no row.
-        update.run(result.value.sector, result.value.industry, result.value.currency, batch[j]);
+        const { sector, industry, currency } = result.value;
+        await execute("UPDATE tickers SET sector = $1, industry = $2, currency = $3 WHERE symbol = $4", [
+          sector,
+          industry,
+          currency,
+          batch[j],
+        ]);
+        // A ticker deleted mid-run simply isn't there to update.
+        const ticker = tickers.get(batch[j]);
+        if (ticker) tickers.set(batch[j], { ...ticker, sector, industry, currency });
         updated++;
       } else {
         failed++;
       }
-    });
+    }
     if (delayMs > 0 && i + batchSize < pending.length) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
@@ -180,7 +168,7 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
       res.status(400).json({ error: `Name must be text of at most ${MAX_NAME_LENGTH} characters` });
       return;
     }
-    if (db.prepare("SELECT 1 FROM tickers WHERE symbol = ?").get(symbol)) {
+    if (tickers.has(symbol)) {
       res.status(409).json({ error: `${symbol} is already in the list` });
       return;
     }
@@ -206,19 +194,22 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
       currency: found.profile?.currency ?? null,
       customGroup: null,
     };
-    db.prepare("INSERT INTO tickers (symbol, name, sector, industry, currency) VALUES (?, ?, ?, ?, ?)").run(
-      ticker.symbol,
-      ticker.name,
-      ticker.sector,
-      ticker.industry,
-      ticker.currency
+    const inserted = await execute(
+      "INSERT INTO tickers (symbol, name, sector, industry, currency) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+      [ticker.symbol, ticker.name, ticker.sector, ticker.industry, ticker.currency]
     );
+    // Lost a race with another request adding the same symbol during the lookup.
+    if (inserted === 0) {
+      res.status(409).json({ error: `${symbol} is already in the list` });
+      return;
+    }
+    tickers.set(symbol, ticker);
     onChange?.();
     res.status(201).json(ticker);
   });
 
   // Updates the name, the custom group, or both; fields left out are unchanged.
-  router.patch("/api/tickers/:symbol", requireAuth, (req: Request, res: Response) => {
+  router.patch("/api/tickers/:symbol", requireAuth, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     const body = req.body ?? {};
     const updates: [column: string, value: string | null][] = [];
@@ -242,20 +233,24 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
       res.status(400).json({ error: "Nothing to update — send a name or customGroup" });
       return;
     }
-    const result = db
-      .prepare(`UPDATE tickers SET ${updates.map(([column]) => `${column} = ?`).join(", ")} WHERE symbol = ?`)
-      .run(...updates.map(([, value]) => value), symbol);
-    if (result.changes === 0) {
+    const [updated] = await query<Ticker>(
+      `UPDATE tickers SET ${updates.map(([column], i) => `${column} = $${i + 1}`).join(", ")}
+       WHERE symbol = $${updates.length + 1} RETURNING ${TICKER_COLUMNS}`,
+      [...updates.map(([, value]) => value), symbol]
+    );
+    if (!updated) {
       res.status(404).json({ error: `${symbol} is not in the list` });
       return;
     }
-    res.json(db.prepare(`SELECT ${TICKER_COLUMNS} FROM tickers WHERE symbol = ?`).get(symbol));
+    tickers.set(symbol, updated);
+    res.json(updated);
   });
 
-  router.delete("/api/tickers/:symbol", requireAuth, (req: Request, res: Response) => {
+  router.delete("/api/tickers/:symbol", requireAuth, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
-    const result = db.prepare("DELETE FROM tickers WHERE symbol = ?").run(symbol);
-    if (result.changes === 0) {
+    const deleted = await execute("DELETE FROM tickers WHERE symbol = $1", [symbol]);
+    tickers.delete(symbol);
+    if (deleted === 0) {
       res.status(404).json({ error: `${symbol} is not in the list` });
       return;
     }

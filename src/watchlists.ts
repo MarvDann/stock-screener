@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import db from "./db";
+import { execute, isUniqueViolation, pool, query, queryOne, Queryable, transaction } from "./db";
 import { requireAuth } from "./middleware/requireAuth";
 import { normalizeSymbol } from "./tickers";
 
@@ -14,87 +14,62 @@ const MAX_NAME_LENGTH = 60;
 const MAX_WATCHLISTS_PER_USER = 50;
 const MAX_SYMBOLS_PER_WATCHLIST = 200;
 
-// Watchlists belong to one user each. Names are unique per user, ignoring case.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS watchlists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE (user_id, name COLLATE NOCASE)
-  )
-`);
-
-// Symbols aren't tied to the tickers table: removing a ticker from the
-// screener leaves it on watchlists, where it can still be removed by hand.
-// `position` orders a list; it can have gaps, only the order matters.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS watchlist_items (
-    watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
-    symbol TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    added_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (watchlist_id, symbol)
-  )
-`);
-
-// Tables created before `position` existed get it added, keeping the order they were added in.
-const itemColumns = (db.prepare("PRAGMA table_info(watchlist_items)").all() as { name: string }[]).map((c) => c.name);
-if (!itemColumns.includes("position")) {
-  db.exec("ALTER TABLE watchlist_items ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
-  db.exec("UPDATE watchlist_items SET position = rowid");
+async function itemsOf(watchlistId: number, db: Queryable = pool): Promise<{ symbol: string; position: number }[]> {
+  return query(
+    "SELECT symbol, position FROM watchlist_items WHERE watchlist_id = $1 ORDER BY position, added_at",
+    [watchlistId],
+    db
+  );
 }
 
-function itemsOf(watchlistId: number): { symbol: string; position: number }[] {
-  return db
-    .prepare("SELECT symbol, position FROM watchlist_items WHERE watchlist_id = ? ORDER BY position, rowid")
-    .all(watchlistId) as { symbol: string; position: number }[];
-}
-
-function symbolsOf(watchlistId: number): string[] {
-  return itemsOf(watchlistId).map((r) => r.symbol);
+async function symbolsOf(watchlistId: number): Promise<string[]> {
+  return (await itemsOf(watchlistId)).map((r) => r.symbol);
 }
 
 /**
  * Adds `symbol` at `index` in the list (e.g. to undo a removal), or on the
  * end when `index` is undefined or past the end.
  */
-function insertSymbol(watchlistId: number, symbol: string, index: number | undefined) {
-  db.transaction(() => {
-    const items = itemsOf(watchlistId);
+async function insertSymbol(watchlistId: number, symbol: string, index: number | undefined): Promise<void> {
+  await transaction(async (client) => {
+    // Locks the list so concurrent inserts can't pick the same position.
+    await client.query("SELECT 1 FROM watchlists WHERE id = $1 FOR UPDATE", [watchlistId]);
+    const items = await itemsOf(watchlistId, client);
     let position: number;
     if (index !== undefined && index < items.length) {
       position = items[index].position;
-      db.prepare("UPDATE watchlist_items SET position = position + 1 WHERE watchlist_id = ? AND position >= ?").run(
+      await client.query("UPDATE watchlist_items SET position = position + 1 WHERE watchlist_id = $1 AND position >= $2", [
         watchlistId,
-        position
-      );
+        position,
+      ]);
     } else {
       position = (items.at(-1)?.position ?? -1) + 1;
     }
-    db.prepare("INSERT INTO watchlist_items (watchlist_id, symbol, position) VALUES (?, ?, ?)").run(
+    await client.query("INSERT INTO watchlist_items (watchlist_id, symbol, position) VALUES ($1, $2, $3)", [
       watchlistId,
       symbol,
-      position
-    );
-  })();
+      position,
+    ]);
+  });
 }
 
-export function listWatchlists(userId: number): Watchlist[] {
-  const rows = db
-    .prepare("SELECT id, name FROM watchlists WHERE user_id = ? ORDER BY name COLLATE NOCASE")
-    .all(userId) as { id: number; name: string }[];
-  return rows.map((r) => ({ ...r, symbols: symbolsOf(r.id) }));
+export async function listWatchlists(userId: string): Promise<Watchlist[]> {
+  const rows = await query<{ id: number; name: string }>(
+    "SELECT id, name FROM watchlists WHERE user_id = $1 ORDER BY lower(name)",
+    [userId]
+  );
+  return Promise.all(rows.map(async (r) => ({ ...r, symbols: await symbolsOf(r.id) })));
 }
 
 /** The user's watchlist with this id, or undefined if it's missing or someone else's. */
-function findWatchlist(userId: number, rawId: unknown): Watchlist | undefined {
+async function findWatchlist(userId: string, rawId: unknown): Promise<Watchlist | undefined> {
   const id = Number(rawId);
-  if (!Number.isInteger(id)) return undefined;
-  const row = db.prepare("SELECT id, name FROM watchlists WHERE id = ? AND user_id = ?").get(id, userId) as
-    | { id: number; name: string }
-    | undefined;
-  return row && { ...row, symbols: symbolsOf(row.id) };
+  if (!Number.isInteger(id) || id < 1 || id > 2 ** 31 - 1) return undefined;
+  const row = await queryOne<{ id: number; name: string }>("SELECT id, name FROM watchlists WHERE id = $1 AND user_id = $2", [
+    id,
+    userId,
+  ]);
+  return row && { ...row, symbols: await symbolsOf(row.id) };
 }
 
 function normalizeName(raw: unknown): string | null {
@@ -103,10 +78,11 @@ function normalizeName(raw: unknown): string | null {
   return name.length > 0 && name.length <= MAX_NAME_LENGTH ? name : null;
 }
 
-function nameTaken(userId: number, name: string, exceptId?: number): boolean {
-  return !!db
-    .prepare("SELECT 1 FROM watchlists WHERE user_id = ? AND name = ? COLLATE NOCASE AND id IS NOT ?")
-    .get(userId, name, exceptId ?? null);
+async function nameTaken(userId: string, name: string, exceptId?: number): Promise<boolean> {
+  return !!(await queryOne(
+    "SELECT 1 FROM watchlists WHERE user_id = $1 AND lower(name) = lower($2) AND id IS DISTINCT FROM $3",
+    [userId, name, exceptId ?? null]
+  ));
 }
 
 const INVALID_NAME = `Name must be 1–${MAX_NAME_LENGTH} characters`;
@@ -120,35 +96,46 @@ export interface WatchlistsRouterDeps {
 export function createWatchlistsRouter({ isKnownSymbol }: WatchlistsRouterDeps): Router {
   const router = Router();
 
-  router.get("/api/watchlists", requireAuth, (req: Request, res: Response) => {
-    res.json({ watchlists: listWatchlists(req.user!.id) });
+  router.get("/api/watchlists", requireAuth, async (req: Request, res: Response) => {
+    res.json({ watchlists: await listWatchlists(req.user!.id) });
   });
 
-  router.post("/api/watchlists", requireAuth, (req: Request, res: Response) => {
+  router.post("/api/watchlists", requireAuth, async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const name = normalizeName(req.body?.name);
     if (!name) {
       res.status(400).json({ error: INVALID_NAME });
       return;
     }
-    if (nameTaken(userId, name)) {
+    if (await nameTaken(userId, name)) {
       res.status(409).json({ error: `You already have a watchlist called "${name}"` });
       return;
     }
-    const { count } = db.prepare("SELECT COUNT(*) AS count FROM watchlists WHERE user_id = ?").get(userId) as {
-      count: number;
-    };
+    const { count } = (await queryOne<{ count: number }>(
+      "SELECT COUNT(*)::int AS count FROM watchlists WHERE user_id = $1",
+      [userId]
+    ))!;
     if (count >= MAX_WATCHLISTS_PER_USER) {
       res.status(400).json({ error: `You can have at most ${MAX_WATCHLISTS_PER_USER} watchlists` });
       return;
     }
-    const id = Number(db.prepare("INSERT INTO watchlists (user_id, name) VALUES (?, ?)").run(userId, name).lastInsertRowid);
+    let id: number;
+    try {
+      ({ id } = (await queryOne<{ id: number }>("INSERT INTO watchlists (user_id, name) VALUES ($1, $2) RETURNING id", [
+        userId,
+        name,
+      ]))!);
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      res.status(409).json({ error: `You already have a watchlist called "${name}"` });
+      return;
+    }
     res.status(201).json({ id, name, symbols: [] } satisfies Watchlist);
   });
 
-  router.patch("/api/watchlists/:id", requireAuth, (req: Request, res: Response) => {
+  router.patch("/api/watchlists/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const watchlist = findWatchlist(userId, req.params.id);
+    const watchlist = await findWatchlist(userId, req.params.id);
     if (!watchlist) {
       res.status(404).json({ error: NOT_FOUND });
       return;
@@ -158,30 +145,33 @@ export function createWatchlistsRouter({ isKnownSymbol }: WatchlistsRouterDeps):
       res.status(400).json({ error: INVALID_NAME });
       return;
     }
-    if (nameTaken(userId, name, watchlist.id)) {
+    if (await nameTaken(userId, name, watchlist.id)) {
       res.status(409).json({ error: `You already have a watchlist called "${name}"` });
       return;
     }
-    db.prepare("UPDATE watchlists SET name = ? WHERE id = ?").run(name, watchlist.id);
+    try {
+      await execute("UPDATE watchlists SET name = $1 WHERE id = $2", [name, watchlist.id]);
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      res.status(409).json({ error: `You already have a watchlist called "${name}"` });
+      return;
+    }
     res.json({ ...watchlist, name });
   });
 
-  router.delete("/api/watchlists/:id", requireAuth, (req: Request, res: Response) => {
-    const watchlist = findWatchlist(req.user!.id, req.params.id);
+  router.delete("/api/watchlists/:id", requireAuth, async (req: Request, res: Response) => {
+    const watchlist = await findWatchlist(req.user!.id, req.params.id);
     if (!watchlist) {
       res.status(404).json({ error: NOT_FOUND });
       return;
     }
-    // Foreign keys aren't enforced (no PRAGMA foreign_keys), so remove the items explicitly.
-    db.transaction(() => {
-      db.prepare("DELETE FROM watchlist_items WHERE watchlist_id = ?").run(watchlist.id);
-      db.prepare("DELETE FROM watchlists WHERE id = ?").run(watchlist.id);
-    })();
+    // Its items go with it (ON DELETE CASCADE).
+    await execute("DELETE FROM watchlists WHERE id = $1", [watchlist.id]);
     res.status(204).end();
   });
 
-  router.post("/api/watchlists/:id/symbols", requireAuth, (req: Request, res: Response) => {
-    const watchlist = findWatchlist(req.user!.id, req.params.id);
+  router.post("/api/watchlists/:id/symbols", requireAuth, async (req: Request, res: Response) => {
+    const watchlist = await findWatchlist(req.user!.id, req.params.id);
     if (!watchlist) {
       res.status(404).json({ error: NOT_FOUND });
       return;
@@ -208,21 +198,28 @@ export function createWatchlistsRouter({ isKnownSymbol }: WatchlistsRouterDeps):
       res.status(400).json({ error: `A watchlist can hold at most ${MAX_SYMBOLS_PER_WATCHLIST} symbols` });
       return;
     }
-    insertSymbol(watchlist.id, symbol, index);
-    res.status(201).json({ ...watchlist, symbols: symbolsOf(watchlist.id) });
+    try {
+      await insertSymbol(watchlist.id, symbol, index);
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      res.status(409).json({ error: `${symbol} is already on ${watchlist.name}` });
+      return;
+    }
+    res.status(201).json({ ...watchlist, symbols: await symbolsOf(watchlist.id) });
   });
 
-  router.delete("/api/watchlists/:id/symbols/:symbol", requireAuth, (req: Request, res: Response) => {
-    const watchlist = findWatchlist(req.user!.id, req.params.id);
+  router.delete("/api/watchlists/:id/symbols/:symbol", requireAuth, async (req: Request, res: Response) => {
+    const watchlist = await findWatchlist(req.user!.id, req.params.id);
     if (!watchlist) {
       res.status(404).json({ error: NOT_FOUND });
       return;
     }
     const symbol = String(req.params.symbol).toUpperCase();
-    const result = db
-      .prepare("DELETE FROM watchlist_items WHERE watchlist_id = ? AND symbol = ?")
-      .run(watchlist.id, symbol);
-    if (result.changes === 0) {
+    const deleted = await execute("DELETE FROM watchlist_items WHERE watchlist_id = $1 AND symbol = $2", [
+      watchlist.id,
+      symbol,
+    ]);
+    if (deleted === 0) {
       res.status(404).json({ error: `${symbol} isn't on ${watchlist.name}` });
       return;
     }

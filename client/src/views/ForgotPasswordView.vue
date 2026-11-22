@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { useRoute } from "vue-router";
 import AuthLayout from "../components/AuthLayout.vue";
-import { requestPasswordReset } from "../api";
+import { authClient, authErrorMessage } from "../auth";
 
 const route = useRoute();
 // Prefilled when coming from the login form.
@@ -15,9 +15,15 @@ async function submit() {
   error.value = "";
   loading.value = true;
   try {
-    sentMessage.value = await requestPasswordReset(email.value.trim());
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Something went wrong";
+    const { error: err } = await authClient.requestPasswordReset({ email: email.value.trim(), redirectTo: "/reset-password" });
+    if (err) {
+      error.value = authErrorMessage(err, "Something went wrong");
+    } else {
+      // The same reply whether or not the account exists, so it can't reveal who's registered.
+      sentMessage.value = "If an account exists for that email, we've sent a link to reset its password.";
+    }
+  } catch {
+    error.value = "Network error";
   } finally {
     loading.value = false;
   }

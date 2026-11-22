@@ -6,12 +6,22 @@
  */
 import fs from "fs";
 import path from "path";
-import { listTickers } from "../tickers";
+import { pool } from "../db";
+import { listTickers, loadTickers } from "../tickers";
 
 const SEED_PATH = path.join(__dirname, "..", "seed", "tickers.json");
 
-const tickers = listTickers();
-// One ticker per line keeps diffs of the seed file readable.
-const body = tickers.map((t) => `  ${JSON.stringify(t)}`).join(",\n");
-fs.writeFileSync(SEED_PATH, `[\n${body}\n]\n`);
-console.log(`Wrote ${tickers.length} tickers to ${path.relative(process.cwd(), SEED_PATH)}`);
+async function main() {
+  await loadTickers();
+  const tickers = listTickers();
+  // One ticker per line keeps diffs of the seed file readable.
+  const body = tickers.map((t) => `  ${JSON.stringify(t)}`).join(",\n");
+  fs.writeFileSync(SEED_PATH, `[\n${body}\n]\n`);
+  console.log(`Wrote ${tickers.length} tickers to ${path.relative(process.cwd(), SEED_PATH)}`);
+  await pool.end();
+}
+
+main().catch((err) => {
+  console.error("Export failed:", err);
+  process.exit(1);
+});

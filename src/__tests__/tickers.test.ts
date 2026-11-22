@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import express from "express";
 import { createTestUser } from "./helpers";
-import { backfillProfiles, createTickersRouter, listSymbols, listTickers, getTickerName } from "../tickers";
-import db from "../db";
+import { backfillProfiles, createTickersRouter, listSymbols, listTickers, loadTickers, getTickerName } from "../tickers";
+import { execute } from "../db";
 import SEED_TICKERS from "../seed/tickers.json";
 
 // Older seed files have no customGroup; the table reports it as null.
@@ -20,12 +20,12 @@ app.use(createTickersRouter({ lookupTicker, onChange }));
 
 let server: ReturnType<typeof app.listen>;
 let baseUrl: string;
-const { token } = createTestUser();
+const { cookie } = await createTestUser();
 
 function request(method: string, path: string, body?: unknown) {
   return fetch(`${baseUrl}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Cookie: cookie },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -172,7 +172,8 @@ describe("tickers", () => {
     });
 
     // Seeded tickers come with profiles, so blank a couple to give the backfill work.
-    db.prepare("UPDATE tickers SET sector = NULL, industry = NULL WHERE symbol IN ('AAPL', 'MSFT')").run();
+    await execute("UPDATE tickers SET sector = NULL, industry = NULL WHERE symbol IN ('AAPL', 'MSFT')");
+    await loadTickers();
     const pending = listTickers().filter((t) => t.sector === null || t.currency === null).map((t) => t.symbol);
     expect(pending).toEqual(["AAPL", "MSFT", "MYST"]);
     const first = await backfillProfiles(lookup, { batchSize: 50, delayMs: 0 });

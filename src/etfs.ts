@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import db from "./db";
+import { execute, query, Queryable } from "./db";
 import { requireAuth } from "./middleware/requireAuth";
 import { SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { normalizeSymbol } from "./tickers";
@@ -119,27 +119,29 @@ const SECTOR_FUNDS: Etf[] = Object.entries(SECTOR_ETFS).map(([symbol, sector]) =
 
 const MAX_NAME_LENGTH = 100;
 
-const tableExists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'etfs'").get();
+/**
+ * The stored (editable) ETFs, in the order they were added. Kept in memory
+ * like the ticker list: loaded by loadEtfs() and updated with each write.
+ */
+let stored: Etf[] = [];
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS etfs (
-    symbol TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,
-    currency TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
-
-// Seed the curated list only when the table is first created, so removing
-// ETFs doesn't bring them back on the next restart.
-if (!tableExists) {
-  const insert = db.prepare("INSERT INTO etfs (symbol, name, category, currency) VALUES (?, ?, ?, ?)");
-  db.transaction(() => {
-    for (const category of EDITABLE_ETF_CATEGORIES) {
-      for (const [symbol, name, currency = "USD"] of CURATED[category]) insert.run(symbol, name, category, currency);
+/** Seeds a fresh etfs table with the curated list. */
+export async function seedEtfs(client: Queryable): Promise<void> {
+  for (const category of EDITABLE_ETF_CATEGORIES) {
+    for (const [symbol, name, currency = "USD"] of CURATED[category]) {
+      await client.query("INSERT INTO etfs (symbol, name, category, currency) VALUES ($1, $2, $3, $4)", [
+        symbol,
+        name,
+        category,
+        currency,
+      ]);
     }
-  })();
+  }
+}
+
+/** (Re)loads the ETF list from the database; call once at startup, after migrating. */
+export async function loadEtfs(): Promise<void> {
+  stored = await query<Etf>("SELECT symbol, name, category, currency FROM etfs ORDER BY id");
 }
 
 function isEditableCategory(value: unknown): value is Exclude<EtfCategory, "US Sectors"> {
@@ -148,17 +150,13 @@ function isEditableCategory(value: unknown): value is Exclude<EtfCategory, "US S
 
 /** Every ETF, in category display order, then in the order they were added. */
 export function listEtfs(): Etf[] {
-  const stored = db.prepare("SELECT symbol, name, category, currency FROM etfs ORDER BY rowid").all() as Etf[];
   return ETF_CATEGORIES.flatMap((category) =>
     category === "US Sectors" ? SECTOR_FUNDS : stored.filter((e) => e.category === category)
   );
 }
 
 export function getEtf(symbol: string): Etf | undefined {
-  return (
-    SECTOR_FUNDS.find((e) => e.symbol === symbol) ??
-    (db.prepare("SELECT symbol, name, category, currency FROM etfs WHERE symbol = ?").get(symbol) as Etf | undefined)
-  );
+  return SECTOR_FUNDS.find((e) => e.symbol === symbol) ?? stored.find((e) => e.symbol === symbol);
 }
 
 function normalizeName(raw: unknown): string | null {
@@ -228,16 +226,20 @@ export function createEtfsRouter({ lookupEtf }: EtfsRouterDeps): Router {
     }
 
     const etf: Etf = { symbol, name: name || found.name || symbol, category, currency: found.currency };
-    db.prepare("INSERT INTO etfs (symbol, name, category, currency) VALUES (?, ?, ?, ?)").run(
-      etf.symbol,
-      etf.name,
-      etf.category,
-      etf.currency
+    const inserted = await execute(
+      "INSERT INTO etfs (symbol, name, category, currency) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+      [etf.symbol, etf.name, etf.category, etf.currency]
     );
+    // Lost a race with another request adding the same symbol during the lookup.
+    if (inserted === 0) {
+      res.status(409).json({ error: `${symbol} is already in the list` });
+      return;
+    }
+    stored.push(etf);
     res.status(201).json({ symbol: etf.symbol, name: etf.name, category: etf.category });
   });
 
-  router.patch("/api/etfs/:symbol", requireAuth, (req: Request, res: Response) => {
+  router.patch("/api/etfs/:symbol", requireAuth, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     const current = getEtf(symbol);
     if (!current) {
@@ -258,18 +260,20 @@ export function createEtfsRouter({ lookupEtf }: EtfsRouterDeps): Router {
       res.status(400).json({ error: INVALID_CATEGORY });
       return;
     }
-    db.prepare("UPDATE etfs SET name = ?, category = ? WHERE symbol = ?").run(name, category, symbol);
+    await execute("UPDATE etfs SET name = $1, category = $2 WHERE symbol = $3", [name, category, symbol]);
+    stored = stored.map((e) => (e.symbol === symbol ? { ...e, name, category } : e));
     res.json({ symbol, name, category });
   });
 
-  router.delete("/api/etfs/:symbol", requireAuth, (req: Request, res: Response) => {
+  router.delete("/api/etfs/:symbol", requireAuth, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     if (SECTOR_FUNDS.some((e) => e.symbol === symbol)) {
       res.status(403).json({ error: "US Sectors ETFs are fixed by the Sector Rotation page" });
       return;
     }
-    const result = db.prepare("DELETE FROM etfs WHERE symbol = ?").run(symbol);
-    if (result.changes === 0) {
+    const deleted = await execute("DELETE FROM etfs WHERE symbol = $1", [symbol]);
+    stored = stored.filter((e) => e.symbol !== symbol);
+    if (deleted === 0) {
       res.status(404).json({ error: `${symbol} is not in the list` });
       return;
     }

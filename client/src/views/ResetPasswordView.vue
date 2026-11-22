@@ -2,13 +2,15 @@
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AuthLayout from "../components/AuthLayout.vue";
-import { resetPassword, setToken } from "../api";
+import { authClient, authErrorMessage } from "../auth";
 
 const MIN_LENGTH = 8;
 
 const route = useRoute();
 const router = useRouter();
 const token = computed(() => (typeof route.query.token === "string" ? route.query.token : ""));
+// The server redirects here with ?error=INVALID_TOKEN when the link has expired or was already used.
+const linkExpired = computed(() => route.query.error === "INVALID_TOKEN");
 const password = ref("");
 const confirm = ref("");
 const error = ref("");
@@ -22,10 +24,18 @@ async function submit() {
   }
   loading.value = true;
   try {
-    setToken(await resetPassword(token.value, password.value));
-    router.push("/");
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Something went wrong";
+    const { error: err } = await authClient.resetPassword({ newPassword: password.value, token: token.value });
+    if (err) {
+      error.value =
+        err.code === "INVALID_TOKEN"
+          ? "This reset link is invalid or has expired — request a new one"
+          : authErrorMessage(err, "Something went wrong");
+      return;
+    }
+    // Resetting doesn't sign you in, so log in with the new password.
+    await router.push({ name: "login", query: { reset: "1" } });
+  } catch {
+    error.value = "Network error";
   } finally {
     loading.value = false;
   }
@@ -34,7 +44,12 @@ async function submit() {
 
 <template>
   <AuthLayout subtitle="Choose a new password">
-    <div v-if="!token" class="form">
+    <div v-if="linkExpired" class="form">
+      <p class="form-error">This reset link is invalid or has expired.</p>
+      <p class="form-footer"><RouterLink :to="{ name: 'forgot-password' }">Request a new link</RouterLink></p>
+    </div>
+
+    <div v-else-if="!token" class="form">
       <p class="form-error">This reset link is incomplete. Open the link from the email again, or request a new one.</p>
       <p class="form-footer"><RouterLink :to="{ name: 'forgot-password' }">Request a new link</RouterLink></p>
     </div>
