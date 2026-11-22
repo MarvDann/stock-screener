@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { passesTrendTemplate } from "../trendTemplate";
+import { DEFAULT_TREND_TEMPLATE_CONFIG, passesTrendTemplate } from "../trendTemplate";
 import { makeBar } from "../../__tests__/helpers";
 
 const series = (closes: number[]) =>
@@ -28,8 +28,13 @@ describe("passesTrendTemplate", () => {
     expect(passesTrendTemplate(pulledBack, pulledBack.length - 1, null)).toBe(false);
   });
 
-  it("fails an RS Rating below 70", () => {
-    expect(passesTrendTemplate(uptrend, uptrend.length - 1, 69)).toBe(false);
-    expect(passesTrendTemplate(uptrend, uptrend.length - 1, 70)).toBe(true);
+  it("fails an RS Rating below the minimum when one is set", () => {
+    const config = { ...DEFAULT_TREND_TEMPLATE_CONFIG, minRsRating: 70 };
+    expect(passesTrendTemplate(uptrend, uptrend.length - 1, 69, config)).toBe(false);
+    expect(passesTrendTemplate(uptrend, uptrend.length - 1, 70, config)).toBe(true);
+  });
+
+  it("ignores the RS Rating by default", () => {
+    expect(passesTrendTemplate(uptrend, uptrend.length - 1, 1)).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findBase, runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "../breakoutScreen";
+import { findBase, leftSideHigh, resistanceLevel, runBreakoutScreen, scanBreakoutScreen, DEFAULT_BREAKOUT_CONFIG } from "../breakoutScreen";
 import { makeBar } from "../../__tests__/helpers";
 import { DailyBar, SymbolHistory } from "../../types";
 
@@ -67,6 +67,53 @@ function nextBar(bars: DailyBar[], close: number, volume = 2_000_000): DailyBar 
   });
 }
 
+describe("resistanceLevel", () => {
+  /** Bars with these highs, each with its low 1 below its high. */
+  const highs = (...hs: number[]) =>
+    hs.map((high, i) => makeBar({ date: new Date(2024, 0, 1 + i), high, low: high - 1, close: high - 0.5, open: high - 0.5 }));
+  const level = (hs: number[], lowIndex: number) =>
+    resistanceLevel(highs(...hs), DEFAULT_BREAKOUT_CONFIG, 0, lowIndex, hs.length - 1);
+
+  it("is the highest high when nothing spikes", () => {
+    expect(level([50, 49.8, 49.9, 49.5, 49.9, 50], 3)).toBe(50);
+  });
+
+  it("ignores a few days spiking above a level price keeps testing", () => {
+    expect(level([53, 52.5, 51, 49, 50, 49.8, 49.9, 50], 3)).toBe(50);
+  });
+
+  it("keeps a sharp peak that price hasn't come back to test", () => {
+    expect(level([53, 51, 49, 47, 46, 45], 5)).toBe(53);
+    expect(level([53, 51, 49, 47, 48, 49], 3)).toBe(53);
+  });
+
+  it("doesn't treat more spike days than allowed as spikes", () => {
+    expect(level([53, 53, 52.5, 52, 49, 50, 49.8, 49.9, 50], 4)).toBe(53);
+  });
+});
+
+describe("leftSideHigh", () => {
+  const highs = (...hs: number[]) =>
+    hs.map((high, i) => makeBar({ date: new Date(2024, 0, 1 + i), high, low: high - 1, close: high - 0.5, open: high - 0.5 }));
+  const leftHigh = (hs: number[]) => leftSideHigh(highs(...hs), DEFAULT_BREAKOUT_CONFIG, hs.indexOf(Math.max(...hs)), hs.length - 1);
+
+  it("is the peak when nothing spikes", () => {
+    expect(leftHigh([48, 49.6, 49.8, 50, 49.7, 47, 45])).toBe(50);
+  });
+
+  it("ignores a few days spiking above a level price tested around them", () => {
+    expect(leftHigh([49.7, 49.8, 50, 49.9, 52, 54, 50, 47, 45])).toBe(50);
+  });
+
+  it("keeps a peak that only pokes slightly above the level", () => {
+    expect(leftHigh([49.7, 49.8, 50, 49.9, 50.75, 50, 47, 45])).toBe(50.75);
+  });
+
+  it("keeps a sharp peak with no level tested around it", () => {
+    expect(leftHigh([44, 46, 48, 50, 54, 50, 47, 45])).toBe(54);
+  });
+});
+
 describe("findBase", () => {
   const end = (h: SymbolHistory) => h.bars.length - 1;
 
@@ -100,7 +147,8 @@ describe("findBase", () => {
     // Pivot ~92.5 is in the upper third of a 70–100.5 cup but ~8% below the left-side high.
     const h = history([...UPTREND, { to: 70, bars: 25 }, { to: 92, bars: 12 }, { to: 90.5, bars: 6, volume: 500_000 }]);
     expect(findBase(h.bars, DEFAULT_BREAKOUT_CONFIG, end(h))?.pattern).toBe("low-cheat");
-    expect(findBase(h.bars, { ...DEFAULT_BREAKOUT_CONFIG, maxHandleBelowHighPct: 10 }, end(h))?.pattern).toBe("cup-handle");
+    const handleConfig = { ...DEFAULT_BREAKOUT_CONFIG, maxHandleBelowHighPct: 10, maxCupHandleDepthPct: 35 };
+    expect(findBase(h.bars, handleConfig, end(h))?.pattern).toBe("cup-handle");
   });
 
   it("finds a heartbeat: a flat base chopping across a flat 50-day SMA", () => {
@@ -142,10 +190,47 @@ describe("findBase", () => {
     expect(base?.pivot).toBeCloseTo(98 * 1.005);
   });
 
+  it("measures a cup from the resistance its left side spiked above", () => {
+    // Topping at ~100.5, a 2-day spike to ~106.5, then the usual cup with handle.
+    const h = history([...UPTREND, { to: 106, bars: 2 }, { to: 100, bars: 2 }, ...CUP_WITH_HANDLE.slice(1)]);
+    const base = findBase(h.bars, DEFAULT_BREAKOUT_CONFIG, end(h));
+
+    expect(base?.pattern).toBe("cup-handle");
+    expect(base?.contractions[0].high).toBeCloseTo(100 * 1.005);
+    // Measured from the spike, the handle is too far below the left-side high.
+    expect(findBase(h.bars, { ...DEFAULT_BREAKOUT_CONFIG, maxPivotSpikeBars: 0 }, end(h))?.pattern).toBe("low-cheat");
+  });
+
+  it("rejects a cup with handle whose cup is deeper than 25%", () => {
+    // A ~30% cup off 100.5 back up to 98, then a ~2.5% handle on light volume.
+    const h = history([...UPTREND, { to: 70, bars: 25 }, { to: 98, bars: 25 }, { to: 96.5, bars: 6, volume: 500_000 }]);
+    expect(findBase(h.bars, DEFAULT_BREAKOUT_CONFIG, end(h))).toBeNull();
+    expect(findBase(h.bars, { ...DEFAULT_BREAKOUT_CONFIG, maxCupHandleDepthPct: 35 }, end(h))?.pattern).toBe("cup-handle");
+  });
+
+  it("sets the pivot at resistance, not a few days that spike above it", () => {
+    // Flat base with resistance at ~95.5 that spikes to ~99.5, then falls back and keeps testing ~95.5.
+    const h = history([
+      ...UPTREND,
+      { to: 90.5, bars: 12 },
+      { to: 95, bars: 10 },
+      { to: 99, bars: 3 },
+      { to: 94, bars: 3 },
+      { to: 95, bars: 2 },
+      { to: 94.5, bars: 2, volume: 500_000 },
+      { to: 95, bars: 2, volume: 500_000 },
+      { to: 94.5, bars: 2, volume: 500_000 },
+    ]);
+
+    expect(findBase(h.bars, DEFAULT_BREAKOUT_CONFIG, end(h))?.pivot).toBeCloseTo(95 * 1.005);
+    const noSpikes = { ...DEFAULT_BREAKOUT_CONFIG, maxPivotSpikeBars: 0 };
+    expect(findBase(h.bars, noSpikes, end(h))?.pivot).toBeCloseTo(99 * 1.005);
+  });
+
   it("rejects a handle deeper than 12%", () => {
     // A 30% cup whose final pullback from 98 to 86 is ~13% deep, though it forms in the handle area.
     const h = history([...UPTREND, { to: 70, bars: 25 }, { to: 98, bars: 25 }, { to: 86, bars: 8, volume: 500_000 }]);
-    const lenient = { ...DEFAULT_BREAKOUT_CONFIG, maxFinalContractionPct: 20 };
+    const lenient = { ...DEFAULT_BREAKOUT_CONFIG, maxFinalContractionPct: 20, maxCupHandleDepthPct: 35 };
 
     expect(findBase(h.bars, lenient, end(h))).toBeNull();
     expect(findBase(h.bars, { ...lenient, maxHandleDepthPct: 20 }, end(h))?.pattern).toBe("cup-handle");
@@ -155,6 +240,13 @@ describe("findBase", () => {
     const legs = FLAT_BASE.map((leg, i) => (i === FLAT_BASE.length - 1 ? { ...leg, volume: 1_500_000 } : leg));
     const h = history(legs);
     expect(findBase(h.bars, DEFAULT_BREAKOUT_CONFIG, end(h))).toBeNull();
+  });
+
+  it("requires the final contraction to be in single digits", () => {
+    // A 30% cup whose final pullback from ~90.5 to ~80.6 is ~11% deep.
+    const h = history([...UPTREND, { to: 70, bars: 25 }, { to: 90, bars: 15 }, { to: 81, bars: 8, volume: 500_000 }]);
+    expect(findBase(h.bars, DEFAULT_BREAKOUT_CONFIG, end(h))).toBeNull();
+    expect(findBase(h.bars, { ...DEFAULT_BREAKOUT_CONFIG, maxFinalContractionPct: 12 }, end(h))?.pattern).toBe("low-cheat");
   });
 
   it("rejects a final contraction that isn't tight", () => {
@@ -221,10 +313,19 @@ describe("runBreakoutScreen", () => {
     expect(runBreakoutScreen({ ...base, bars })?.state).toBe("approaching");
   });
 
-  it("requires the Trend Template's RS Rating", () => {
+  it("requires the Trend Template's RS Rating when a minimum is set", () => {
     const h = history(CUP_WITH_HANDLE);
-    expect(runBreakoutScreen(h, DEFAULT_BREAKOUT_CONFIG, "", { rsRating: 69 })).toBeNull();
-    expect(runBreakoutScreen(h, DEFAULT_BREAKOUT_CONFIG, "", { rsRating: 70 })?.details.rsRating).toBe(70);
+    const config = {
+      ...DEFAULT_BREAKOUT_CONFIG,
+      trendTemplate: { ...DEFAULT_BREAKOUT_CONFIG.trendTemplate, minRsRating: 70 },
+    };
+    expect(runBreakoutScreen(h, config, "", { rsRating: 69 })).toBeNull();
+    expect(runBreakoutScreen(h, config, "", { rsRating: 70 })?.details.rsRating).toBe(70);
+  });
+
+  it("doesn't filter on RS Rating by default", () => {
+    const h = history(CUP_WITH_HANDLE);
+    expect(runBreakoutScreen(h, DEFAULT_BREAKOUT_CONFIG, "", { rsRating: 1 })?.details.rsRating).toBe(1);
   });
 
   it("returns null for a valid base in a stock that isn't in an uptrend", () => {

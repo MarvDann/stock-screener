@@ -3,16 +3,20 @@
 A local web app with two screens, run on-demand against live end-of-day data:
 
 1. **Breakout screen** — Mark Minervini's method. Stocks must pass his
-   8-point Trend Template (stacked, rising 50/150/200-day SMAs, at least 30%
-   off the 52-week low, within 25% of the high, RS Rating of 70 or more).
+   Trend Template (stacked, rising 50/150/200-day SMAs, at least 30% off the
+   52-week low, within 25% of the high). His eighth criterion, an RS Rating
+   of 70 or more, is switched off for now: ratings rank only the tracked
+   tickers, so they're shown but not filtered on.
    It then looks for a volatility contraction pattern (2–6 progressively
-   smaller pullbacks, the last one tight on drying-up volume) in a flat
-   base, heartbeat, cup with handle or low cheat (a tight pause anywhere in
-   a cup below the handle area). The pivot is the
-   high of the final contraction. "Triggered" stocks closed above it in the
-   last 3 trading days; cards flag breakouts on light volume (under 40%
-   above average) or extended more than 5% past the pivot. "Approaching"
-   stocks are within 5% below it. Results are sorted by relevance and paginated.
+   smaller pullbacks, the last one under 10% deep on drying-up volume) in
+   a flat base, heartbeat, cup with handle (cup no deeper than 25%) or low
+   cheat (a tight pause anywhere in a cup below the handle area). The pivot
+   is the resistance level of the final contraction: its high, unless a few
+   days spike above a level price then falls back under and keeps testing.
+   The cup's left-side high ignores spikes the same way.
+   "Triggered" stocks closed above it in the last 3 trading days; cards
+   flag breakouts on light volume (under 40% above average) or extended more
+   than 5% past the pivot. "Approaching" stocks are within 5% below it. Results are sorted by relevance and paginated.
 2. **Sector rotation screen** — ranks the 11 SPDR sector ETFs by relative
    strength vs SPY over 1/3/6-month windows, plus a simple money-flow
    (accumulation/distribution) read, to show which sectors institutional

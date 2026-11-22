@@ -8,6 +8,12 @@ import { DEFAULT_TREND_TEMPLATE_CONFIG, TrendTemplateConfig, passesTrendTemplate
 /** SMA period the heartbeat chops across. */
 const HEARTBEAT_SMA_PERIOD = 50;
 
+/** How close, in %, a high must come to the resistance level to count as a test of it. */
+const RESISTANCE_TOUCH_PCT = 1;
+
+/** Bars either side of a base's left-side peak searched for the resistance it spiked above. */
+const LEFT_SIDE_WINDOW = 10;
+
 export interface BreakoutScreenConfig {
   /** Longest base considered, in bars. Minervini: up to 65 weeks. Default 325. */
   maxBaseBars: number;
@@ -19,6 +25,8 @@ export interface BreakoutScreenConfig {
   minCupBars: number;
   /** Deepest a cup may correct, in %. Minervini: ideally no more than 35. Default 35. */
   maxCupDepthPct: number;
+  /** Deepest the cup of a cup with handle may correct, left-side high to the cup's low, in %. Default 25. */
+  maxCupHandleDepthPct: number;
   /** Deepest a handle may pull back, in %. Default 12. */
   maxHandleDepthPct: number;
   /** A cup's pause is a handle when its high is within this % of the left-side high; lower, it's a low cheat. Default 5. */
@@ -31,8 +39,14 @@ export interface BreakoutScreenConfig {
   swingThresholdPct: number;
   /** Most contractions a VCP may have. Minervini: 2 to 6. Default 6. */
   maxContractions: number;
-  /** Deepest the final contraction may be, in % — volatility must be tight at the pivot. Default 10. */
+  /** The final contraction must be shallower than this %, i.e. single digits — volatility must be tight at the pivot. Default 10. */
   maxFinalContractionPct: number;
+  /** Days that may spike above a resistance level (the pivot or the left-side high) without setting it. Default 3. */
+  maxPivotSpikeBars: number;
+  /** % a spike's peak must clear the resistance level by to be ignored rather than be the level itself. Default 2. */
+  pivotSpikePct: number;
+  /** Times price must test the resistance level, besides the spike, for the spike to be ignored. Default 3. */
+  minPivotTouches: number;
   /** Fewest bars the final contraction must span, so a stock still running up isn't "tight". Default 5. */
   minFinalContractionBars: number;
   /** Max ratio of the final contraction's average volume to the 50 days before it — volume must dry up. Default 1. */
@@ -60,6 +74,7 @@ export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
   maxFlatBaseDepthPct: 15,
   minCupBars: 35,
   maxCupDepthPct: 35,
+  maxCupHandleDepthPct: 25,
   maxHandleDepthPct: 12,
   maxHandleBelowHighPct: 5,
   minPriorAdvancePct: 25,
@@ -67,6 +82,9 @@ export const DEFAULT_BREAKOUT_CONFIG: BreakoutScreenConfig = {
   swingThresholdPct: 3,
   maxContractions: 6,
   maxFinalContractionPct: 10,
+  maxPivotSpikeBars: 3,
+  pivotSpikePct: 2,
+  minPivotTouches: 3,
   minFinalContractionBars: 5,
   maxFinalVolumeRatio: 1,
   minSmaCrosses: 3,
@@ -110,6 +128,56 @@ function countSmaCrosses(bars: DailyBar[], start: number, end: number): number {
   return crosses;
 }
 
+/**
+ * The pivot's resistance level for a final contraction running from its
+ * high at `start`, through its low at `lowIndex`, to `end`: normally that
+ * high, but a few days spiking above the level price rallies back to after
+ * the low, and keeps testing, don't count. The level is the highest high
+ * since the low; it's the pivot when no more than `maxPivotSpikeBars` highs
+ * sit above it, the peak clears it by more than `pivotSpikePct`, and at
+ * least `minPivotTouches` bars after the spike come within 1% of it.
+ */
+export function resistanceLevel(
+  bars: DailyBar[],
+  config: BreakoutScreenConfig,
+  start: number,
+  lowIndex: number,
+  end: number
+): number {
+  const peak = bars[start].high;
+  if (lowIndex >= end) return peak;
+  const level = Math.max(...bars.slice(lowIndex + 1, end + 1).map((b) => b.high));
+  const above = bars.slice(start, end + 1).filter((b) => b.high > level);
+  if (above.length > config.maxPivotSpikeBars || peak <= level * (1 + config.pivotSpikePct / 100)) return peak;
+
+  let lastSpike = start;
+  for (let i = start; i <= end; i++) if (bars[i].high > level) lastSpike = i;
+  let touches = 0;
+  for (let i = lastSpike + 1; i <= end; i++) if (bars[i].high >= level * (1 - RESISTANCE_TOUCH_PCT / 100)) touches++;
+  return touches >= config.minPivotTouches ? level : peak;
+}
+
+/**
+ * The left-side high of a base whose highest high is at `start`: normally
+ * that high, but a few days spiking above a level price tested around them
+ * don't count. Within `LEFT_SIDE_WINDOW` bars either side, the level is the
+ * highest high left once up to `maxPivotSpikeBars` are set aside; it's the
+ * left-side high when the peak clears it by more than `pivotSpikePct` and at
+ * least `minPivotTouches` other bars come within 1% of it.
+ */
+export function leftSideHigh(bars: DailyBar[], config: BreakoutScreenConfig, start: number, end: number): number {
+  const peak = bars[start].high;
+  const window = bars.slice(Math.max(0, start - LEFT_SIDE_WINDOW), Math.min(end, start + LEFT_SIDE_WINDOW) + 1);
+  const highs = window.map((b) => b.high).sort((a, b) => b - a);
+  for (let k = 1; k <= config.maxPivotSpikeBars && k < highs.length; k++) {
+    const level = highs[k];
+    if (peak <= level * (1 + config.pivotSpikePct / 100)) continue;
+    const touches = highs.slice(k).filter((h) => h >= level * (1 - RESISTANCE_TOUCH_PCT / 100)).length;
+    if (touches >= config.minPivotTouches) return level;
+  }
+  return peak;
+}
+
 /** A flat base that chops back and forth across a flat 50-day SMA. */
 function isHeartbeat(bars: DailyBar[], config: BreakoutScreenConfig, start: number, end: number): boolean {
   const smaNow = sma(bars, HEARTBEAT_SMA_PERIOD, end);
@@ -126,15 +194,18 @@ function isProgressive(contractions: Contraction[], config: BreakoutScreenConfig
 
 /**
  * Finds the base the stock is in as of `end`, or null if it isn't in one
- * that meets Minervini's rules. The base runs from its left-side high (the
- * highest high of the last `maxBaseBars`) to `end`; the pivot is the high of
- * the final contraction, which must be tight, on drying-up volume.
+ * that meets Minervini's rules. The base runs from its left-side peak (the
+ * highest high of the last `maxBaseBars`) to `end`. The left-side high it's
+ * measured from, and the pivot — the resistance level of the final
+ * contraction — both ignore a few days that spike above resistance. The
+ * final contraction must be tight, on drying-up volume.
  *
  * - Flat base: at least 5 weeks, no deeper than 15%, contracting.
  * - Heartbeat: a flat base whose closes chop across a flat 50-day SMA.
  * - Cup: at least 7 weeks, no deeper than 35%, contracting. A pause that
  *   forms once the right side is back near the left-side high is a handle
- *   ("cup-handle", in the upper half, no deeper than 12%); a pause anywhere
+ *   ("cup-handle", in the upper half, no deeper than 12%, in a cup no
+ *   deeper than 25%); a pause anywhere
  *   below that — lower, middle or upper third — is a "low-cheat".
  */
 export function findBase(bars: DailyBar[], config: BreakoutScreenConfig, end: number): Base | null {
@@ -143,7 +214,7 @@ export function findBase(bars: DailyBar[], config: BreakoutScreenConfig, end: nu
   const lengthBars = end - start + 1;
   if (start === 0 || lengthBars < config.minFlatBaseBars) return null;
 
-  const leftHigh = bars[start].high;
+  const leftHigh = leftSideHigh(bars, config, start, end);
   const priorLow = lowestLow(bars, config.priorAdvanceLookback, start - 1);
   if ((leftHigh / priorLow - 1) * 100 < config.minPriorAdvancePct) return null;
 
@@ -151,19 +222,26 @@ export function findBase(bars: DailyBar[], config: BreakoutScreenConfig, end: nu
   const depthPct = ((leftHigh - baseLow) / leftHigh) * 100;
 
   const contractions = findContractions(bars, start, end, config.swingThresholdPct, config.minFinalContractionBars);
-  const final = contractions[contractions.length - 1];
+  // The first contraction runs from the left-side peak; measure it from the left-side high instead.
+  const first = contractions[0];
+  contractions[0] = { ...first, high: leftHigh, depthPct: ((leftHigh - first.low) / leftHigh) * 100 };
+  const last = contractions[contractions.length - 1];
+  const resistance = resistanceLevel(bars, config, last.highIndex, last.lowIndex, end);
+  const pivot = last.highIndex === start ? Math.min(resistance, leftHigh) : resistance;
+  // Tightness is measured from the resistance, so a spike doesn't make the contraction look deeper.
+  const final = { ...last, high: pivot, depthPct: ((pivot - last.low) / pivot) * 100 };
   const finalBars = end - final.highIndex + 1;
   // Volume is judged on the pullback itself, not any rally back toward the pivot after it.
   const pullbackEnd = Math.min(end, Math.max(final.lowIndex, final.highIndex + config.minFinalContractionBars - 1));
   const finalVolume = averageVolume(bars, pullbackEnd - final.highIndex + 1, pullbackEnd);
   const priorVolume = averageVolume(bars, config.volumeAvgPeriod, final.highIndex - 1);
   const isTight =
-    final.depthPct <= config.maxFinalContractionPct &&
+    final.depthPct < config.maxFinalContractionPct &&
     finalBars >= config.minFinalContractionBars &&
     finalVolume <= priorVolume * config.maxFinalVolumeRatio;
   if (!isTight) return null;
 
-  const base = { pivot: final.high, startIndex: start, lengthBars, depthPct, contractions };
+  const base = { pivot, startIndex: start, lengthBars, depthPct, contractions: [...contractions.slice(0, -1), final] };
 
   if (depthPct <= config.maxFlatBaseDepthPct) {
     if (isHeartbeat(bars, config, start, end)) return { ...base, pattern: "heartbeat" };
@@ -174,7 +252,10 @@ export function findBase(bars: DailyBar[], config: BreakoutScreenConfig, end: nu
   if (!isProgressive(contractions, config)) return null;
 
   if (final.high < leftHigh * (1 - config.maxHandleBelowHighPct / 100)) return { ...base, pattern: "low-cheat" };
-  const isHandle = final.low >= (leftHigh + baseLow) / 2 && final.depthPct <= config.maxHandleDepthPct;
+  const isHandle =
+    depthPct <= config.maxCupHandleDepthPct &&
+    final.low >= (leftHigh + baseLow) / 2 &&
+    final.depthPct <= config.maxHandleDepthPct;
   return isHandle ? { ...base, pattern: "cup-handle" } : null;
 }
 

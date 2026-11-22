@@ -11,15 +11,19 @@ export interface TrendTemplateConfig {
   minAbove52WeekLowPct: number;
   /** Max % the close may be below its 52-week high. Default 25. */
   maxBelow52WeekHighPct: number;
-  /** Min RS Rating (1–99). Default 70. Skipped when no rating is available. */
-  minRsRating: number;
+  /**
+   * Min RS Rating (1–99), or null to skip the check. Minervini: 70. Default
+   * null: ratings rank only the tracked tickers, not the whole market, so
+   * they're too skewed to filter on. Skipped too when no rating is available.
+   */
+  minRsRating: number | null;
 }
 
 export const DEFAULT_TREND_TEMPLATE_CONFIG: TrendTemplateConfig = {
   sma200RisingBars: 22,
   minAbove52WeekLowPct: 30,
   maxBelow52WeekHighPct: 25,
-  minRsRating: 70,
+  minRsRating: null,
 };
 
 /**
@@ -61,6 +65,6 @@ export function passesTrendTemplate(
     // 7. Within 25% of the 52-week high.
     close >= yearHigh * (1 - config.maxBelow52WeekHighPct / 100) &&
     // 8. RS Rating of at least 70.
-    (rsRating === null || rsRating >= config.minRsRating)
+    (config.minRsRating === null || rsRating === null || rsRating >= config.minRsRating)
   );
 }
