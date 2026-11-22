@@ -90,10 +90,12 @@ export function rsRatingScore(bars: DailyBar[], endIndex = bars.length - 1): num
  * year of history get no rating.
  */
 export function rsRatings(histories: { symbol: string; bars: DailyBar[] }[]): Map<string, number> {
-  const scored = histories
-    .map((h) => ({ symbol: h.symbol, score: rsRatingScore(h.bars) }))
-    .filter((s) => !isNaN(s.score))
-    .sort((a, b) => a.score - b.score);
+  return percentileRatings(histories.map((h) => ({ symbol: h.symbol, score: rsRatingScore(h.bars) })));
+}
+
+/** Each symbol's score as a percentile (1–99) of the others'. NaN scores get no rating. */
+export function percentileRatings(scores: { symbol: string; score: number }[]): Map<string, number> {
+  const scored = scores.filter((s) => !isNaN(s.score)).sort((a, b) => a.score - b.score);
   const ratings = new Map<string, number>();
   if (scored.length < 2) return ratings;
   scored.forEach((s, rank) => ratings.set(s.symbol, Math.round(1 + (98 * rank) / (scored.length - 1))));

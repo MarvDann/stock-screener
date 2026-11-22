@@ -5,7 +5,9 @@ import { backfillProfiles, createTickersRouter, listSymbols, listTickers, getTic
 import db from "../db";
 import SEED_TICKERS from "../seed/tickers.json";
 
-const seeded = (symbol: string) => SEED_TICKERS.find((t) => t.symbol === symbol)!;
+// Older seed files have no customGroup; the table reports it as null.
+const SEEDED = SEED_TICKERS.map((t) => ({ ...t, customGroup: (t as { customGroup?: string | null }).customGroup ?? null }));
+const seeded = (symbol: string) => SEEDED.find((t) => t.symbol === symbol)!;
 
 const lookupTicker = vi.fn(async (symbol: string) =>
   symbol === "NOPE" ? null : { name: `${symbol} Inc`, profile: { sector: "Technology", industry: "Software", currency: "USD" } }
@@ -45,7 +47,7 @@ afterAll(() => {
 describe("tickers", () => {
   it("seeds the table from the seed file on first run, profiles included", () => {
     expect(listSymbols()).toEqual(SEED_TICKERS.map((t) => t.symbol).sort());
-    expect(listTickers()).toEqual(SEED_TICKERS);
+    expect(listTickers()).toEqual(SEEDED);
     expect(getTickerName("AAPL")).toBe(seeded("AAPL").name);
   });
 
@@ -58,13 +60,20 @@ describe("tickers", () => {
     const res = await request("GET", "/api/tickers");
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.tickers[0]).toEqual(SEED_TICKERS[0]);
+    expect(body.tickers[0]).toEqual(SEEDED[0]);
   });
 
   it("adds a ticker, uppercasing it and filling the name from the lookup", async () => {
     const res = await request("POST", "/api/tickers", { symbol: " abcd-b " });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ symbol: "ABCD-B", name: "ABCD-B Inc", sector: "Technology", industry: "Software", currency: "USD" });
+    expect(await res.json()).toEqual({
+      symbol: "ABCD-B",
+      name: "ABCD-B Inc",
+      sector: "Technology",
+      industry: "Software",
+      currency: "USD",
+      customGroup: null,
+    });
     expect(listSymbols()).toContain("ABCD-B");
     expect(onChange).toHaveBeenCalled();
   });
@@ -77,7 +86,14 @@ describe("tickers", () => {
   it("leaves the profile null when that part of the lookup failed", async () => {
     lookupTicker.mockResolvedValueOnce({ name: "Mystery Co", profile: null });
     const res = await request("POST", "/api/tickers", { symbol: "MYST" });
-    expect(await res.json()).toEqual({ symbol: "MYST", name: "Mystery Co", sector: null, industry: null, currency: null });
+    expect(await res.json()).toEqual({
+      symbol: "MYST",
+      name: "Mystery Co",
+      sector: null,
+      industry: null,
+      currency: null,
+      customGroup: null,
+    });
   });
 
   it("rejects malformed symbols", async () => {
@@ -109,6 +125,30 @@ describe("tickers", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ...seeded("AAPL"), name: "Apple Inc." });
     expect(getTickerName("AAPL")).toBe("Apple Inc.");
+  });
+
+  it("sets and clears a custom group, leaving the name alone", async () => {
+    const set = await request("PATCH", "/api/tickers/MSFT", { customGroup: "  Cloud   Platforms " });
+    expect(set.status).toBe(200);
+    expect(await set.json()).toEqual({ ...seeded("MSFT"), customGroup: "Cloud Platforms" });
+
+    const cleared = await request("PATCH", "/api/tickers/MSFT", { customGroup: "" });
+    expect(await cleared.json()).toEqual(seeded("MSFT"));
+    await request("PATCH", "/api/tickers/MSFT", { customGroup: "Cloud Platforms" });
+    const nulled = await request("PATCH", "/api/tickers/MSFT", { customGroup: null });
+    expect((await nulled.json()).customGroup).toBeNull();
+  });
+
+  it("updates the name and custom group together", async () => {
+    const res = await request("PATCH", "/api/tickers/MSFT", { name: "Microsoft Corp", customGroup: "Cloud" });
+    expect(await res.json()).toMatchObject({ name: "Microsoft Corp", customGroup: "Cloud" });
+    await request("PATCH", "/api/tickers/MSFT", { name: seeded("MSFT").name, customGroup: null });
+  });
+
+  it("rejects an invalid custom group or an empty update", async () => {
+    expect((await request("PATCH", "/api/tickers/MSFT", { customGroup: 42 })).status).toBe(400);
+    expect((await request("PATCH", "/api/tickers/MSFT", { customGroup: "x".repeat(51) })).status).toBe(400);
+    expect((await request("PATCH", "/api/tickers/MSFT", {})).status).toBe(400);
   });
 
   it("returns 404 when renaming an unknown ticker", async () => {

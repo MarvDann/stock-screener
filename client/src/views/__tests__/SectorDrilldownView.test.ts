@@ -30,7 +30,7 @@ const STATS: SectorStatsResponse = {
 };
 
 function ticker(symbol: string, sector: string | null, industry: string | null): Ticker {
-  return { symbol, name: symbol, sector, industry };
+  return { symbol, name: symbol, sector, industry, customGroup: null };
 }
 
 function makeCard(symbol: string): StockCard {

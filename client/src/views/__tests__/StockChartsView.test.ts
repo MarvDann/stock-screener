@@ -26,15 +26,15 @@ function stocksFor(symbols: string[]) {
 }
 
 const TICKERS: Ticker[] = [
-  { symbol: "AAPL", name: "Apple Inc.", sector: "Technology", industry: "Consumer Electronics" },
-  { symbol: "AMD", name: "Advanced Micro Devices", sector: "Technology", industry: "Semiconductors" },
-  { symbol: "MSFT", name: "Microsoft", sector: "Technology", industry: "Software - Infrastructure" },
+  { symbol: "AAPL", name: "Apple Inc.", sector: "Technology", industry: "Consumer Electronics", customGroup: null },
+  { symbol: "AMD", name: "Advanced Micro Devices", sector: "Technology", industry: "Semiconductors", customGroup: null },
+  { symbol: "MSFT", name: "Microsoft", sector: "Technology", industry: "Software - Infrastructure", customGroup: null },
 ];
 
 const MIXED_SECTORS: Ticker[] = [
   ...TICKERS,
-  { symbol: "JPM", name: "JPMorgan Chase", sector: "Financial Services", industry: "Banks - Diversified" },
-  { symbol: "SPY", name: "SPDR S&P 500", sector: "", industry: "" },
+  { symbol: "JPM", name: "JPMorgan Chase", sector: "Financial Services", industry: "Banks - Diversified", customGroup: null },
+  { symbol: "SPY", name: "SPDR S&P 500", sector: "", industry: "", customGroup: null },
 ];
 
 async function mountView() {

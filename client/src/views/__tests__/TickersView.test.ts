@@ -32,8 +32,14 @@ async function mountView() {
 
 beforeEach(() => {
   fetchTickers.mockReset().mockResolvedValue([
-    { symbol: "AAPL", name: "Apple", sector: "Technology", industry: "Consumer Electronics" },
-    { symbol: "MSFT", name: "Microsoft", sector: "Technology", industry: "Software - Infrastructure" },
+    { symbol: "AAPL", name: "Apple", sector: "Technology", industry: "Consumer Electronics", customGroup: null },
+    {
+      symbol: "MSFT",
+      name: "Microsoft",
+      sector: "Technology",
+      industry: "Software - Infrastructure",
+      customGroup: "Cloud Platforms",
+    },
   ]);
   addTicker.mockReset();
   updateTicker.mockReset();
@@ -109,7 +115,7 @@ describe("TickersView", () => {
   });
 
   it("renames a ticker inline", async () => {
-    updateTicker.mockResolvedValue({ symbol: "AAPL", name: "Apple Inc." });
+    updateTicker.mockResolvedValue({ symbol: "AAPL", name: "Apple Inc.", customGroup: null });
     const wrapper = await mountView();
 
     await wrapper.find(".edit-btn").trigger("click");
@@ -117,9 +123,39 @@ describe("TickersView", () => {
     await wrapper.find(".edit-form").trigger("submit");
     await flushPromises();
 
-    expect(updateTicker).toHaveBeenCalledWith("AAPL", "Apple Inc.");
+    expect(updateTicker).toHaveBeenCalledWith("AAPL", { name: "Apple Inc.", customGroup: null });
     expect(wrapper.find(".edit-form").exists()).toBe(false);
     expect(wrapper.findAll("tbody tr")[0].text()).toContain("Apple Inc.");
+  });
+
+  it("shows custom groups and suggests existing ones", async () => {
+    const wrapper = await mountView();
+
+    const rows = wrapper.findAll("tbody tr");
+    expect(rows[0].find(".group-chip").exists()).toBe(false);
+    expect(rows[1].find(".group-chip").text()).toBe("Cloud Platforms");
+    expect(wrapper.findAll("#custom-groups option").map((o) => o.attributes("value"))).toEqual(["Cloud Platforms"]);
+  });
+
+  it("assigns a custom group while editing", async () => {
+    updateTicker.mockResolvedValue({ symbol: "AAPL", name: "Apple", customGroup: "Hardware" });
+    const wrapper = await mountView();
+
+    await wrapper.find(".edit-btn").trigger("click");
+    await wrapper.find(".group-input").setValue("  Hardware ");
+    await wrapper.find(".edit-form").trigger("submit");
+    await flushPromises();
+
+    expect(updateTicker).toHaveBeenCalledWith("AAPL", { name: "Apple", customGroup: "Hardware" });
+    expect(wrapper.findAll("tbody tr")[0].find(".group-chip").text()).toBe("Hardware");
+  });
+
+  it("finds tickers by custom group", async () => {
+    const wrapper = await mountView();
+
+    await wrapper.find(".filter-input").setValue("cloud");
+
+    expect(wrapper.findAll("tbody tr").map((r) => r.find(".symbol").text())).toEqual(["MSFT"]);
   });
 
   it("removes a ticker after confirmation", async () => {

@@ -141,6 +141,8 @@ export interface Ticker {
   sector: string | null;
   /** Sub-sector. Null until looked up; "" when Yahoo has none. */
   industry: string | null;
+  /** An industry group of the user's own (e.g. "Cybersecurity"), ranked instead of `industry`. Null when unset. */
+  customGroup: string | null;
 }
 
 export interface Watchlist {
@@ -261,5 +263,56 @@ export interface VolatilityResponse {
   series: { symbol: string; name: string; points: DatedValue[] }[];
   /** VIX ÷ VIX 3-month for each day both have, oldest first. */
   termRatioSeries: DatedValue[];
+  warnings: string[];
+}
+
+export interface IndustryGroupMember {
+  symbol: string;
+  name: string;
+  close: number;
+  /** ISO currency prices are in (pence already converted to pounds); null if not known yet. */
+  currency: string | null;
+  /** 1-month performance as a percentile (1–99) of the tracked universe's; null without the history. */
+  rs1m: number | null;
+  /** 3-month performance as a percentile (1–99) of the tracked universe's; null without the history. */
+  rs3m: number | null;
+  /** % change over 1 and 3 months; null without enough history. */
+  perf1m: number | null;
+  perf3m: number | null;
+  /** % below the 52-week high (0 at the high, negative below). */
+  pctFromHigh: number;
+  aboveSma50: boolean;
+  /** Passes the Trend Template — a Stage 2 uptrend. */
+  stage2: boolean;
+  /** The breakout screen's verdict, or null when it isn't setting up. */
+  setup: "triggered" | "approaching" | null;
+}
+
+export interface IndustryGroup {
+  /** 1 = strongest ranked group. */
+  rank: number;
+  industry: string;
+  /** The sector most of the group's stocks are in. */
+  sector: string;
+  /** A group made on the Tickers page rather than one of Yahoo's industries. */
+  custom: boolean;
+  memberCount: number;
+  /** Mean of the members' 1-month and 3-month RS — what groups are ranked by. */
+  rsScore: number;
+  avgRs1m: number;
+  avgRs3m: number;
+  perf1m: number | null;
+  perf3m: number | null;
+  aboveSma50: number;
+  stage2: number;
+  /** Strongest first — the first is the group leader. */
+  members: IndustryGroupMember[];
+}
+
+export interface IndustryGroupsResponse {
+  asOf: string | null;
+  /** Groups with enough stocks to be ranked. */
+  rankedGroups: number;
+  groups: IndustryGroup[];
   warnings: string[];
 }

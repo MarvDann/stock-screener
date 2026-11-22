@@ -3,6 +3,7 @@ import type {
   EarningsResponse,
   Etf,
   EtfsResponse,
+  IndustryGroupsResponse,
   OverviewResponse,
   SectorRotationResponse,
   SectorStatsResponse,
@@ -95,6 +96,10 @@ export function fetchSectorStats(): Promise<SectorStatsResponse> {
   return fetchJson<SectorStatsResponse>("/api/sector-stats");
 }
 
+export function fetchIndustryGroups(): Promise<IndustryGroupsResponse> {
+  return fetchJson<IndustryGroupsResponse>("/api/industry-groups");
+}
+
 export function fetchSectorRotation(): Promise<SectorRotationResponse> {
   return fetchJson<SectorRotationResponse>("/api/sector-rotation");
 }
@@ -140,8 +145,9 @@ export function addTicker(symbol: string, name?: string): Promise<Ticker> {
   return fetchJson<Ticker>("/api/tickers", { method: "POST", body: { symbol, name } });
 }
 
-export function updateTicker(symbol: string, name: string): Promise<Ticker> {
-  return fetchJson<Ticker>(`/api/tickers/${encodeURIComponent(symbol)}`, { method: "PATCH", body: { name } });
+/** Fields left out are unchanged; an empty or null `customGroup` clears it. */
+export function updateTicker(symbol: string, changes: { name?: string; customGroup?: string | null }): Promise<Ticker> {
+  return fetchJson<Ticker>(`/api/tickers/${encodeURIComponent(symbol)}`, { method: "PATCH", body: changes });
 }
 
 export function deleteTicker(symbol: string): Promise<void> {

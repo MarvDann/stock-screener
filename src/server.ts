@@ -12,6 +12,7 @@ import { rsRatings } from "./indicators/relativeStrength";
 import {
   BreakoutScanResponse,
   EarningsResponse,
+  IndustryGroupsResponse,
   MarketDataProvider,
   OverviewResponse,
   SectorStatsResponse,
@@ -42,6 +43,7 @@ import { createEtfsRouter, getEtf, listEtfs } from "./etfs";
 import { createWatchlistsRouter } from "./watchlists";
 import { computeGroupStats, computeMarketOverview } from "./screens/marketOverview";
 import { VOLATILITY_INDICES, summarizeVolatility } from "./screens/volatility";
+import { rankIndustryGroups } from "./screens/industryGroups";
 
 const app = express();
 app.use(express.json());
@@ -237,6 +239,24 @@ app.get("/api/sector-stats", requireAuth, async (_req, res) => {
   } catch (err) {
     console.error("Sector stats failed:", err);
     res.status(502).json({ error: "Sector stats failed", message: (err as Error).message });
+  }
+});
+
+app.get("/api/industry-groups", requireAuth, async (_req, res) => {
+  try {
+    const { histories, currencies, warnings, benchmarkBars } = await loadScan();
+    const profiles = Object.fromEntries(listTickers().map((t) => [t.symbol, t]));
+    const { rankedGroups, groups } = rankIndustryGroups(histories, profiles, undefined, benchmarkBars);
+    const response: IndustryGroupsResponse = {
+      asOf: computeMarketOverview(histories).asOf,
+      rankedGroups,
+      groups: groups.map((g) => ({ ...g, members: g.members.map(withCurrency(currencies)) })),
+      warnings,
+    };
+    res.json(response);
+  } catch (err) {
+    console.error("Industry groups failed:", err);
+    res.status(502).json({ error: "Industry groups failed", message: (err as Error).message });
   }
 });
 

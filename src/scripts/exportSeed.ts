@@ -1,7 +1,7 @@
 /**
- * Writes the current ticker list (symbol, name, sector, sub-sector, currency)
- * to src/seed/tickers.json, which seeds the tickers table on a fresh
- * database. Run after changing the list you want new setups to start with.
+ * Writes the current ticker list (symbol, name, sector, sub-sector, currency,
+ * custom group) to src/seed/tickers.json, which seeds the tickers table on a
+ * fresh database. Run after changing the list you want new setups to start with.
  * User accounts are never exported.
  */
 import fs from "fs";

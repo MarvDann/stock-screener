@@ -13,6 +13,11 @@ export interface Ticker {
   industry: string | null;
   /** Trading currency as the data provider quotes it, e.g. "USD" or "GBp" (pence). Null until looked up. */
   currency: string | null;
+  /**
+   * An industry group of the user's own, e.g. "Cybersecurity", ranked in
+   * place of `industry` on the Industry Groups page. Null when unset.
+   */
+  customGroup: string | null;
 }
 
 /**
@@ -22,6 +27,7 @@ export interface Ticker {
  */
 export const SYMBOL_PATTERN = /^[A-Z0-9^][A-Z0-9.=-]{0,14}$/;
 const MAX_NAME_LENGTH = 100;
+const MAX_GROUP_LENGTH = 50;
 
 const tableExists = db
   .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'tickers'")
@@ -34,6 +40,7 @@ db.exec(`
     sector TEXT,
     industry TEXT,
     currency TEXT,
+    custom_group TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
@@ -43,17 +50,22 @@ const columns = (db.prepare("PRAGMA table_info(tickers)").all() as { name: strin
 if (!columns.includes("sector")) db.exec("ALTER TABLE tickers ADD COLUMN sector TEXT");
 if (!columns.includes("industry")) db.exec("ALTER TABLE tickers ADD COLUMN industry TEXT");
 if (!columns.includes("currency")) db.exec("ALTER TABLE tickers ADD COLUMN currency TEXT");
+if (!columns.includes("custom_group")) db.exec("ALTER TABLE tickers ADD COLUMN custom_group TEXT");
 
-const TICKER_COLUMNS = "symbol, name, sector, industry, currency";
+const TICKER_COLUMNS = "symbol, name, sector, industry, currency, custom_group AS customGroup";
 
 // Seed only when the table is first created, so deleting every ticker
 // doesn't bring the list back on the next restart. The seed file is a
 // snapshot of a real ticker list, profiles included — refresh it with
 // `pnpm run db:export-seed`.
 if (!tableExists) {
-  const insert = db.prepare(`INSERT OR IGNORE INTO tickers (${TICKER_COLUMNS}) VALUES (?, ?, ?, ?, ?)`);
+  const insert = db.prepare(
+    "INSERT OR IGNORE INTO tickers (symbol, name, sector, industry, currency, custom_group) VALUES (?, ?, ?, ?, ?, ?)"
+  );
   db.transaction(() => {
-    for (const t of SEED_TICKERS as Ticker[]) insert.run(t.symbol, t.name, t.sector, t.industry, t.currency);
+    for (const t of SEED_TICKERS as Partial<Ticker>[]) {
+      insert.run(t.symbol, t.name, t.sector, t.industry, t.currency, t.customGroup ?? null);
+    }
   })();
 }
 
@@ -125,6 +137,14 @@ export function normalizeSymbol(raw: unknown): string | null {
   return SYMBOL_PATTERN.test(symbol) ? symbol : null;
 }
 
+/** A custom group name, "" to clear it, or null when invalid. */
+function normalizeGroup(raw: unknown): string | null {
+  if (raw === null) return "";
+  if (typeof raw !== "string") return null;
+  const group = raw.trim().replace(/\s+/g, " ");
+  return group.length <= MAX_GROUP_LENGTH ? group : null;
+}
+
 function normalizeName(raw: unknown): string | null {
   if (raw === undefined || raw === null) return "";
   if (typeof raw !== "string") return null;
@@ -184,6 +204,7 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
       sector: found.profile?.sector ?? null,
       industry: found.profile?.industry ?? null,
       currency: found.profile?.currency ?? null,
+      customGroup: null,
     };
     db.prepare("INSERT INTO tickers (symbol, name, sector, industry, currency) VALUES (?, ?, ?, ?, ?)").run(
       ticker.symbol,
@@ -196,14 +217,34 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
     res.status(201).json(ticker);
   });
 
+  // Updates the name, the custom group, or both; fields left out are unchanged.
   router.patch("/api/tickers/:symbol", requireAuth, (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
-    const name = normalizeName(req.body?.name);
-    if (name === null) {
-      res.status(400).json({ error: `Name must be text of at most ${MAX_NAME_LENGTH} characters` });
+    const body = req.body ?? {};
+    const updates: [column: string, value: string | null][] = [];
+    if ("name" in body) {
+      const name = normalizeName(body.name);
+      if (name === null) {
+        res.status(400).json({ error: `Name must be text of at most ${MAX_NAME_LENGTH} characters` });
+        return;
+      }
+      updates.push(["name", name]);
+    }
+    if ("customGroup" in body) {
+      const group = normalizeGroup(body.customGroup);
+      if (group === null) {
+        res.status(400).json({ error: `Group must be text of at most ${MAX_GROUP_LENGTH} characters` });
+        return;
+      }
+      updates.push(["custom_group", group || null]);
+    }
+    if (updates.length === 0) {
+      res.status(400).json({ error: "Nothing to update — send a name or customGroup" });
       return;
     }
-    const result = db.prepare("UPDATE tickers SET name = ? WHERE symbol = ?").run(name, symbol);
+    const result = db
+      .prepare(`UPDATE tickers SET ${updates.map(([column]) => `${column} = ?`).join(", ")} WHERE symbol = ?`)
+      .run(...updates.map(([, value]) => value), symbol);
     if (result.changes === 0) {
       res.status(404).json({ error: `${symbol} is not in the list` });
       return;

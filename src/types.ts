@@ -1,5 +1,6 @@
 import type { Breadth, GroupStats, Mover } from "./screens/marketOverview";
 import type { VolatilitySummary } from "./screens/volatility";
+import type { IndustryGroup, IndustryGroupMember } from "./screens/industryGroups";
 
 /**
  * A single day's OHLCV bar.
@@ -248,5 +249,16 @@ export interface EarningsResponse {
 
 /** The VIX family of indices, for the volatility page. */
 export interface VolatilityResponse extends VolatilitySummary {
+  warnings: string[];
+}
+
+/** The strongest industry groups, each with its leader and top competitors. */
+export interface IndustryGroupsResponse {
+  asOf: string | null;
+  /** Groups with enough rated stocks to be ranked; `groups` is the top few of these. */
+  rankedGroups: number;
+  groups: (Omit<IndustryGroup, "members"> & {
+    members: (IndustryGroupMember & { currency: string | null })[];
+  })[];
   warnings: string[];
 }

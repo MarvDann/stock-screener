@@ -39,6 +39,7 @@ function logout() {
       <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
       <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
       <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>
+      <RouterLink to="/industry-groups" class="nav-link">Industry Groups</RouterLink>
       <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
       <div class="sidebar-bottom">
         <RouterLink to="/account" class="nav-link">Account</RouterLink>
