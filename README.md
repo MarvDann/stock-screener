@@ -4,6 +4,8 @@ A local web app for screening and charting stocks against live end-of-day
 data: Minervini-style breakouts, sector and industry group rotation, market
 breadth, earnings and volatility. Scans run on demand.
 
+![Home dashboard in the matrix theme](docs/images/home.png)
+
 The tracked universe is ~870 tickers: S&P 500 constituents plus the
 competitors that fill out their industry groups. It's managed from the
 **Tickers** page (see [Database](#database)).
