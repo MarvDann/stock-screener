@@ -46,12 +46,12 @@ describe("useStockCards", () => {
   it("fetches the page's cards and reuses them on another page view", async () => {
     const first = useStockCards(page("AAPL", "MSFT"));
     await settle();
-    expect(fetchStocks).toHaveBeenCalledWith(["AAPL", "MSFT"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["AAPL", "MSFT"], { fresh: false });
     expect(names(first.pageCards.value)).toEqual(["AAPL v1", "MSFT v1"]);
 
     const second = useStockCards(page("MSFT", "NVDA"));
     await settle();
-    expect(fetchStocks).toHaveBeenLastCalledWith(["NVDA"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["NVDA"], { fresh: false });
     expect(names(second.pageCards.value)).toEqual(["MSFT v1", "NVDA v1"]);
   });
 
@@ -62,7 +62,7 @@ describe("useStockCards", () => {
 
     paged.value = [{ symbol: "TSLA" }];
     await settle();
-    expect(fetchStocks).toHaveBeenLastCalledWith(["TSLA"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["TSLA"], { fresh: false });
     expect(names(cards.pageCards.value)).toEqual(["TSLA v1"]);
   });
 
@@ -80,7 +80,7 @@ describe("useStockCards", () => {
 
     const cards = useStockCards(page("AAPL", "MSFT"));
     await settle();
-    expect(fetchStocks).toHaveBeenLastCalledWith(["AAPL"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["AAPL"], { fresh: false });
     expect(names(cards.pageCards.value)).toEqual(["AAPL v1", "MSFT v1"]);
     expect(cards.refreshing.value).toBe(true);
     expect(cards.loading.value).toBe(false);
@@ -97,7 +97,7 @@ describe("useStockCards", () => {
 
     await cards.load({ force: true });
     expect(fetchStocks).toHaveBeenCalledTimes(2);
-    expect(fetchStocks).toHaveBeenLastCalledWith(["AAPL", "MSFT"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["AAPL", "MSFT"], { fresh: true });
   });
 
   it("keeps cached cards on screen when a refresh fails", async () => {

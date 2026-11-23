@@ -131,7 +131,7 @@ describe("HomeView", () => {
 
   it("shows a pulse tile per index with price, day change and currency", async () => {
     const wrapper = await mountView();
-    expect(fetchStocks).toHaveBeenCalledWith(["SPY", "QQQ", "IWM", "DIA", "VWRP.L", "ISF.L"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["SPY", "QQQ", "IWM", "DIA", "VWRP.L", "ISF.L"], { fresh: false });
     const tiles = wrapper.findAll(".tile");
     expect(tiles).toHaveLength(6);
     expect(tiles[0].find(".tile-label").text()).toBe("S&P 500");
@@ -195,12 +195,24 @@ describe("HomeView", () => {
     expect(wrapper.find(".breadth-legend").exists()).toBe(true);
   });
 
-  it("refreshes everything when Refresh is clicked", async () => {
+  it("reuses data under 5 minutes old when opened, without asking for live prices", async () => {
+    (await mountView()).unmount();
+    await mountView();
+    expect(fetchOverview).toHaveBeenCalledTimes(1);
+    expect(fetchSectorRotation).toHaveBeenCalledTimes(1);
+    expect(fetchOverview).toHaveBeenCalledWith({ fresh: false });
+    expect(fetchSectorRotation).toHaveBeenCalledWith({ fresh: false });
+  });
+
+  it("pulls live prices for everything when Refresh is clicked", async () => {
     const wrapper = await mountView();
     await wrapper.find(".hero .btn-primary").trigger("click");
     await flushPromises();
     expect(fetchOverview).toHaveBeenCalledTimes(2);
     expect(fetchSectorRotation).toHaveBeenCalledTimes(2);
     expect(fetchStocks).toHaveBeenCalledTimes(2);
+    expect(fetchOverview).toHaveBeenLastCalledWith({ fresh: true });
+    expect(fetchSectorRotation).toHaveBeenLastCalledWith({ fresh: true });
+    expect(fetchStocks).toHaveBeenLastCalledWith(["SPY", "QQQ", "IWM", "DIA", "VWRP.L", "ISF.L"], { fresh: true });
   });
 });

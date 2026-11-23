@@ -70,7 +70,7 @@ describe("EtfsView", () => {
   it("shows every ETF in category order with charts for the first page", async () => {
     const wrapper = await mountView();
     expect(cardSymbols(wrapper)).toEqual(["VWRP.L", "SPY", "QQQ", "SMH", "XLK"]);
-    expect(fetchStocks).toHaveBeenCalledWith(["VWRP.L", "SPY", "QQQ", "SMH", "XLK"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["VWRP.L", "SPY", "QQQ", "SMH", "XLK"], { fresh: false });
     expect(wrapper.find(".match-count").text()).toBe("5 matches");
   });
 
@@ -120,7 +120,7 @@ describe("EtfsView", () => {
 
     await wrapper.findComponent(Pagination).vm.$emit("update:page", 2);
     await flushPromises();
-    expect(fetchStocks).toHaveBeenLastCalledWith(["E6", "E7"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["E6", "E7"], { fresh: false });
 
     await chip(wrapper, "Bonds").trigger("click");
     await flushPromises();

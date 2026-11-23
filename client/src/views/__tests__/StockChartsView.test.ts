@@ -70,7 +70,7 @@ describe("StockChartsView", () => {
   it("lists every tracked ticker before anything is typed", async () => {
     const wrapper = await mountView();
 
-    expect(fetchStocks).toHaveBeenCalledWith(["AAPL", "AMD", "MSFT"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["AAPL", "AMD", "MSFT"], { fresh: false });
     expect(cardSymbols(wrapper)).toEqual(["AAPL", "AMD", "MSFT"]);
     expect(wrapper.find(".match-count").text()).toBe("3 matches");
   });
@@ -104,11 +104,11 @@ describe("StockChartsView", () => {
     fetchTickers.mockResolvedValue(many);
     const wrapper = await mountView();
 
-    expect(fetchStocks).toHaveBeenLastCalledWith(["S0", "S1", "S2", "S3", "S4", "S5"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["S0", "S1", "S2", "S3", "S4", "S5"], { fresh: false });
 
     await wrapper.findComponent(Pagination).vm.$emit("update:page", 2);
     await flushPromises();
-    expect(fetchStocks).toHaveBeenLastCalledWith(["S6", "S7"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["S6", "S7"], { fresh: false });
     expect(cardSymbols(wrapper)).toEqual(["S6", "S7"]);
   });
 

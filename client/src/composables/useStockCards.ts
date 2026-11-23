@@ -59,7 +59,7 @@ export function useStockCards(paged: Ref<{ symbol: string }[]>) {
     paged.value.map((t) => cache.get(t.symbol)?.card).filter((c): c is StockCard => c !== undefined)
   );
 
-  /** `force` refetches the whole page even if it's fresh (the Refresh button). */
+  /** `force` refetches the whole page with live prices, even if it's fresh (the Refresh button). */
   async function load({ force = false } = {}) {
     const id = ++requestId;
     const symbols = paged.value.map((t) => t.symbol);
@@ -80,7 +80,7 @@ export function useStockCards(paged: Ref<{ symbol: string }[]>) {
     if (toFetch.length === 0) return;
 
     try {
-      const response = await fetchStocks(toFetch);
+      const response = await fetchStocks(toFetch, { fresh: force });
       // Kept even if the user has paged away — it's still valid data.
       const fetchedAt = Date.now();
       for (const card of response.stocks) store(card, fetchedAt);

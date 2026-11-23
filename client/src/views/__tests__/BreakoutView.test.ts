@@ -203,11 +203,11 @@ describe("BreakoutView", () => {
     await flushPromises();
 
     expect(fetchStocks).toHaveBeenCalledTimes(1);
-    expect(fetchStocks).toHaveBeenLastCalledWith(["SYM0", "SYM1", "SYM2", "SYM3", "SYM4", "SYM5"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["SYM0", "SYM1", "SYM2", "SYM3", "SYM4", "SYM5"], { fresh: false });
 
     await wrapper.findComponent(Pagination).vm.$emit("update:page", 2);
     await flushPromises();
-    expect(fetchStocks).toHaveBeenLastCalledWith(["SYM6", "SYM7"]);
+    expect(fetchStocks).toHaveBeenLastCalledWith(["SYM6", "SYM7"], { fresh: false });
 
     // Paging back reuses the cached cards.
     await wrapper.findComponent(Pagination).vm.$emit("update:page", 1);

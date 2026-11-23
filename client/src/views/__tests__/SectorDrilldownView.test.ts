@@ -85,7 +85,7 @@ describe("SectorDrilldownView", () => {
     expect(tileNames(wrapper)).toEqual(["Technology", "Financial Services", "Uncategorized"]);
     expect(wrapper.find(".tile-meta").text()).toBe("3 stocks · 2 sub-sectors");
     // Only the sector ETFs are fetched, for the trend lines.
-    expect(fetchStocks).toHaveBeenCalledWith(["XLK", "XLF"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["XLK", "XLF"], { fresh: false });
   });
 
   it("drills into a sector's sub-sectors when a sector is clicked", async () => {
@@ -104,7 +104,7 @@ describe("SectorDrilldownView", () => {
   it("shows chart cards for the stocks in a sub-sector", async () => {
     const { wrapper } = await mountAt({ sector: "Technology", industry: "Semiconductors" });
 
-    expect(fetchStocks).toHaveBeenCalledWith(["AMD", "NVDA"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["AMD", "NVDA"], { fresh: false });
     const symbols = wrapper.findAllComponents(CandidateCard).map((c) => c.props("candidate").symbol);
     expect(symbols).toEqual(["AMD", "NVDA"]);
     expect(wrapper.find(".breadcrumb").text()).toBe("All sectors/Technology/Semiconductors");
@@ -125,7 +125,7 @@ describe("SectorDrilldownView", () => {
 
   it("groups tickers without a sector under Uncategorized", async () => {
     const { wrapper } = await mountAt({ sector: "Uncategorized", industry: "Uncategorized" });
-    expect(fetchStocks).toHaveBeenCalledWith(["SPY"]);
+    expect(fetchStocks).toHaveBeenCalledWith(["SPY"], { fresh: false });
     expect(wrapper.findAllComponents(CandidateCard)).toHaveLength(1);
   });
 

@@ -58,8 +58,13 @@ export function fetchBreakout(): Promise<BreakoutResponse> {
   return fetchJson<BreakoutResponse>("/api/breakout");
 }
 
-export function fetchOverview(): Promise<OverviewResponse> {
-  return fetchJson<OverviewResponse>("/api/overview");
+/** `?fresh=1` asks the server to skip its 5-minute price cache and pull live prices. */
+function freshQuery(fresh: boolean, separator: "?" | "&" = "?"): string {
+  return fresh ? `${separator}fresh=1` : "";
+}
+
+export function fetchOverview({ fresh = false } = {}): Promise<OverviewResponse> {
+  return fetchJson<OverviewResponse>(`/api/overview${freshQuery(fresh)}`);
 }
 
 export function fetchSectorStats(): Promise<SectorStatsResponse> {
@@ -70,8 +75,8 @@ export function fetchIndustryGroups(): Promise<IndustryGroupsResponse> {
   return fetchJson<IndustryGroupsResponse>("/api/industry-groups");
 }
 
-export function fetchSectorRotation(): Promise<SectorRotationResponse> {
-  return fetchJson<SectorRotationResponse>("/api/sector-rotation");
+export function fetchSectorRotation({ fresh = false } = {}): Promise<SectorRotationResponse> {
+  return fetchJson<SectorRotationResponse>(`/api/sector-rotation${freshQuery(fresh)}`);
 }
 
 export function fetchStockDetail(symbol: string): Promise<StockDetail> {
@@ -82,8 +87,10 @@ export function fetchStockChart(symbol: string, timeframe: StockChart["timeframe
   return fetchJson<StockChart>(`/api/stock/${encodeURIComponent(symbol)}/chart?timeframe=${timeframe}`);
 }
 
-export function fetchStocks(symbols: string[]): Promise<StocksResponse> {
-  return fetchJson<StocksResponse>(`/api/stocks?symbols=${symbols.map(encodeURIComponent).join(",")}`);
+export function fetchStocks(symbols: string[], { fresh = false } = {}): Promise<StocksResponse> {
+  return fetchJson<StocksResponse>(
+    `/api/stocks?symbols=${symbols.map(encodeURIComponent).join(",")}${freshQuery(fresh, "&")}`
+  );
 }
 
 export function fetchEarnings(): Promise<EarningsResponse> {

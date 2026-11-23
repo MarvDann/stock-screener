@@ -105,6 +105,7 @@ function share(part: number, total: number): string {
 const refreshing = computed(() => overview.loading.value || rotation.loading.value || indexCards.refreshing.value);
 const updatedLabel = computed(() => (refreshing.value ? "Refreshing…" : overview.updatedLabel.value));
 
+/** Pulls live prices, skipping the 5-minute cache, and shows what's cached until they arrive. */
 function refresh() {
   void overview.load({ force: true });
   void rotation.load({ force: true });

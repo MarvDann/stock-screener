@@ -54,11 +54,13 @@ describe("useCachedResource", () => {
     expect(r.data.value).toEqual({ n: 2 });
   });
 
-  it("always refetches when forced", async () => {
+  it("always refetches when forced, asking for live data", async () => {
     const r = useCachedResource("k", fetcher);
     await r.load();
+    expect(fetcher).toHaveBeenLastCalledWith({ fresh: false });
     await r.load({ force: true });
     expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenLastCalledWith({ fresh: true });
   });
 
   it("restores from IndexedDB after a reload", async () => {

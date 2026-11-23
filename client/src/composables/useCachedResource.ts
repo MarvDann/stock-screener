@@ -20,9 +20,14 @@ export function resetCachedResources(): void {
 
 /**
  * A request whose last response is shown straight away from cache, and only
- * refetched once it's older than `ttlMs` (or when forced by a Refresh).
+ * refetched once it's older than `ttlMs` (or when forced by a Refresh, which
+ * also asks the fetcher for live data rather than the server's cached copy).
  */
-export function useCachedResource<T>(key: string, fetcher: () => Promise<T>, ttlMs = RESOURCE_TTL_MS) {
+export function useCachedResource<T>(
+  key: string,
+  fetcher: (options: { fresh: boolean }) => Promise<T>,
+  ttlMs = RESOURCE_TTL_MS
+) {
   const initial = memory.get(key) as Entry<T> | undefined;
   const data = ref(initial?.data ?? null) as Ref<T | null>;
   const fetchedAt = ref<number | null>(initial?.fetchedAt ?? null);
@@ -48,7 +53,7 @@ export function useCachedResource<T>(key: string, fetcher: () => Promise<T>, ttl
 
     loading.value = true;
     try {
-      const entry = { data: await fetcher(), fetchedAt: Date.now() };
+      const entry = { data: await fetcher({ fresh: force }), fetchedAt: Date.now() };
       memory.set(key, entry);
       show(entry);
       void cacheSet(key, entry);

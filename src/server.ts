@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request } from "express";
 import { YahooMarketDataProvider } from "./data/yahooProvider";
 import { getQuoteName, getStockFundamentals, getTickerProfile } from "./data/yahooFinancials";
 import { getCompanyNews } from "./data/companyNews";
@@ -116,13 +116,18 @@ app.use(createWatchlistsRouter({ isKnownSymbol: (symbol) => symbol in chartableS
 
 let scanInFlight: Promise<SymbolHistory[]> | null = null;
 
+/** True when the client asked to skip the 5-minute price cache (its Refresh button). */
+function wantsFresh(req: Request): boolean {
+  return req.query.fresh === "1";
+}
+
 /**
- * Every tracked ticker's history, from the 5-minute cache when warm.
- * Concurrent cold requests (e.g. the home page and Breakout together) share
- * one fetch instead of each pulling every ticker from the provider.
+ * Every tracked ticker's history, from the 5-minute cache when warm (unless
+ * `fresh`). Concurrent requests (e.g. the home page and Breakout together)
+ * share one fetch instead of each pulling every ticker from the provider.
  */
-async function loadScanHistories(): Promise<SymbolHistory[]> {
-  const cached = getCached("breakout");
+async function loadScanHistories(fresh = false): Promise<SymbolHistory[]> {
+  const cached = fresh ? null : getCached("breakout");
   if (cached) return cached;
   scanInFlight ??= provider
     .getManyDailyHistories(listSymbols(), LOOKBACK_CALENDAR_DAYS)
@@ -136,9 +141,9 @@ async function loadScanHistories(): Promise<SymbolHistory[]> {
   return scanInFlight;
 }
 
-/** SPY's history from the cache, else fetched; empty bars if the fetch fails. */
-async function loadBenchmark(): Promise<SymbolHistory> {
-  const cached = getCached("benchmark")?.[0];
+/** SPY's history from the cache (unless `fresh`), else fetched; empty bars if the fetch fails. */
+async function loadBenchmark(fresh = false): Promise<SymbolHistory> {
+  const cached = fresh ? null : getCached("benchmark")?.[0];
   if (cached) return cached;
   const benchmark = await provider
     .getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS)
@@ -171,8 +176,8 @@ async function loadBreakoutContext(): Promise<(symbol: string) => BreakoutContex
 }
 
 /** Scan histories in major units (pence → pounds), plus warnings for any that failed to fetch. */
-async function loadScan() {
-  const [histories, benchmark] = await Promise.all([loadScanHistories(), loadBenchmark()]);
+async function loadScan(fresh = false) {
+  const [histories, benchmark] = await Promise.all([loadScanHistories(fresh), loadBenchmark(fresh)]);
   const currencies = getCurrencyMap();
   return {
     currencies,
@@ -204,9 +209,9 @@ app.get("/api/breakout", requireAuth, async (_req, res) => {
 
 const OVERVIEW_TOP_BREAKOUTS = 5;
 
-app.get("/api/overview", requireAuth, async (_req, res) => {
+app.get("/api/overview", requireAuth, async (req, res) => {
   try {
-    const { histories, currencies, warnings, benchmarkBars } = await loadScan();
+    const { histories, currencies, warnings, benchmarkBars } = await loadScan(wantsFresh(req));
     const names = getNameMap();
     const overview = computeMarketOverview(histories, names);
     const { triggered, approaching } = scanBreakoutScreen(histories, DEFAULT_BREAKOUT_CONFIG, names, benchmarkBars);
@@ -299,9 +304,10 @@ app.get("/api/stocks", requireAuth, async (req, res) => {
   try {
     // Reuse the breakout scan's histories when warm, then per-symbol
     // entries from earlier searches, and only fetch what's left.
-    const scanned = new Map((getCached("breakout") ?? []).map((h) => [h.symbol, h]));
+    const fresh = wantsFresh(req);
+    const scanned = new Map((fresh ? [] : (getCached("breakout") ?? [])).map((h) => [h.symbol, h]));
     const histories = new Map<string, SymbolHistory>();
-    for (const symbol of symbols) {
+    for (const symbol of fresh ? [] : symbols) {
       const history = scanned.get(symbol) ?? getCached(`stock:${symbol}`)?.[0];
       if (history && history.bars.length > 0) histories.set(symbol, history);
     }
@@ -413,23 +419,18 @@ app.get("/api/volatility", requireAuth, async (_req, res) => {
   }
 });
 
-app.get("/api/sector-rotation", requireAuth, async (_req, res) => {
+app.get("/api/sector-rotation", requireAuth, async (req, res) => {
   try {
-    const sectorSymbols = Object.keys(SECTOR_ETFS);
-    let sectorHistories = getCached("sector-rotation");
-    let benchmarkHistory: SymbolHistory;
-    if (sectorHistories) {
-      benchmarkHistory = getCached("benchmark")?.[0] ?? await provider.getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS);
-    } else {
-      const [sectors, benchmark] = await Promise.all([
-        provider.getManyDailyHistories(sectorSymbols, LOOKBACK_CALENDAR_DAYS),
-        provider.getDailyHistory(BENCHMARK_SYMBOL, LOOKBACK_CALENDAR_DAYS),
-      ]);
-      sectorHistories = sectors;
-      benchmarkHistory = benchmark;
-      setCache("sector-rotation", sectorHistories);
-      setCache("benchmark", [benchmarkHistory]);
-    }
+    const fresh = wantsFresh(req);
+    const cached = fresh ? null : getCached("sector-rotation");
+    const [sectorHistories, benchmarkHistory] = await Promise.all([
+      cached ??
+        provider.getManyDailyHistories(Object.keys(SECTOR_ETFS), LOOKBACK_CALENDAR_DAYS).then((sectors) => {
+          setCache("sector-rotation", sectors);
+          return sectors;
+        }),
+      loadBenchmark(fresh),
+    ]);
 
     if (benchmarkHistory.bars.length === 0) {
       res.status(502).json({
