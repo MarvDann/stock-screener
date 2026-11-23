@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { addEtf, deleteEtf, fetchEtfs, updateEtf } from "../api";
 import type { Etf } from "../types";
+import { useIsAdmin } from "../composables/useIsAdmin";
 import CandidateCard from "../components/CandidateCard.vue";
 import WarningsBanner from "../components/WarningsBanner.vue";
 import Pagination from "../components/Pagination.vue";
@@ -13,6 +14,8 @@ import { filterAndRank } from "../utils/search";
 const CARDS_PER_PAGE = 6;
 
 const etfs = ref<Etf[]>([]);
+// Renaming, moving or removing an ETF changes everyone's list, so only admins can; members can still add.
+const isAdmin = useIsAdmin();
 const categories = ref<string[]>([]);
 const editableCategories = ref<string[]>([]);
 const loading = ref(false);
@@ -225,7 +228,7 @@ onMounted(load);
                 </td>
                 <td>
                   <select
-                    v-if="isEditable(e)"
+                    v-if="isEditable(e) && isAdmin"
                     :value="e.category"
                     :aria-label="`Category for ${e.symbol}`"
                     @change="move(e, ($event.target as HTMLSelectElement).value)"
@@ -238,7 +241,7 @@ onMounted(load);
                   <template v-if="!isEditable(e)">
                     <span class="muted" title="These are the funds the Sector Rotation page ranks">Fixed</span>
                   </template>
-                  <template v-else-if="renamingSymbol !== e.symbol">
+                  <template v-else-if="isAdmin && renamingSymbol !== e.symbol">
                     <button type="button" class="btn-ghost" @click="startRename(e)">Rename</button>
                     <button type="button" class="btn-ghost remove-btn" @click="remove(e)">Remove</button>
                   </template>

@@ -49,17 +49,19 @@ describe("etfs router", () => {
   let server: ReturnType<typeof app.listen>;
   let baseUrl: string;
   let cookie: string;
+  let adminCookie: string;
 
-  function request(method: string, path: string, body?: unknown) {
+  function request(method: string, path: string, body?: unknown, as = cookie) {
     return fetch(`${baseUrl}${path}`, {
       method,
-      headers: { "Content-Type": "application/json", Cookie: cookie },
+      headers: { "Content-Type": "application/json", Cookie: as },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   }
 
   beforeAll(async () => {
     ({ cookie } = await createTestUser());
+    ({ cookie: adminCookie } = await createTestUser("admin@example.com"));
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
         const addr = server.address();
@@ -121,25 +123,35 @@ describe("etfs router", () => {
   });
 
   it("renames and moves an ETF", async () => {
-    let res = await request("PATCH", "/api/etfs/arkk", { name: "ARK Innovation ETF" });
+    let res = await request("PATCH", "/api/etfs/arkk", { name: "ARK Innovation ETF" }, adminCookie);
     expect(await res.json()).toEqual({ symbol: "ARKK", name: "ARK Innovation ETF", category: "Thematic" });
 
-    res = await request("PATCH", "/api/etfs/ARKK", { category: "Growth & Tech" });
+    res = await request("PATCH", "/api/etfs/ARKK", { category: "Growth & Tech" }, adminCookie);
     expect(res.status).toBe(200);
     expect(getEtf("ARKK")).toMatchObject({ name: "ARK Innovation ETF", category: "Growth & Tech" });
   });
 
   it("rejects bad edits, unknown ETFs and edits to US Sectors funds", async () => {
-    expect((await request("PATCH", "/api/etfs/ARKK", { name: "  " })).status).toBe(400);
-    expect((await request("PATCH", "/api/etfs/ARKK", { category: "US Sectors" })).status).toBe(400);
-    expect((await request("PATCH", "/api/etfs/ZZZZ", { name: "x" })).status).toBe(404);
-    expect((await request("PATCH", "/api/etfs/XLK", { name: "x" })).status).toBe(403);
-    expect((await request("DELETE", "/api/etfs/XLK")).status).toBe(403);
+    expect((await request("PATCH", "/api/etfs/ARKK", { name: "  " }, adminCookie)).status).toBe(400);
+    expect((await request("PATCH", "/api/etfs/ARKK", { category: "US Sectors" }, adminCookie)).status).toBe(400);
+    expect((await request("PATCH", "/api/etfs/ZZZZ", { name: "x" }, adminCookie)).status).toBe(404);
+    expect((await request("PATCH", "/api/etfs/XLK", { name: "x" }, adminCookie)).status).toBe(403);
+    const xlk = await request("DELETE", "/api/etfs/XLK", undefined, adminCookie);
+    expect(xlk.status).toBe(403);
+    expect((await xlk.json()).error).toContain("fixed");
   });
 
-  it("removes an ETF", async () => {
-    expect((await request("DELETE", "/api/etfs/usO")).status).toBe(204);
+  it("only lets an admin rename or move an ETF", async () => {
+    expect((await request("PATCH", "/api/etfs/ARKK", { name: "Renamed" })).status).toBe(403);
+    expect((await request("PATCH", "/api/etfs/ARKK", { category: "Global" })).status).toBe(403);
+    expect(getEtf("ARKK")?.name).not.toBe("Renamed");
+  });
+
+  it("only lets an admin remove an ETF", async () => {
+    expect((await request("DELETE", "/api/etfs/USO")).status).toBe(403);
+    expect(getEtf("USO")).toBeDefined();
+    expect((await request("DELETE", "/api/etfs/usO", undefined, adminCookie)).status).toBe(204);
     expect(getEtf("USO")).toBeUndefined();
-    expect((await request("DELETE", "/api/etfs/USO")).status).toBe(404);
+    expect((await request("DELETE", "/api/etfs/USO", undefined, adminCookie)).status).toBe(404);
   });
 });

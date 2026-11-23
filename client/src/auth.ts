@@ -11,6 +11,8 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  /** Admins can remove tickers and ETFs and see the Users page. */
+  isAdmin: boolean;
 }
 
 let sessionUser: Promise<SessionUser | null> | null = null;
@@ -21,9 +23,13 @@ let sessionUser: Promise<SessionUser | null> | null = null;
  * signing in or out. A failed lookup isn't cached.
  */
 export function getSessionUser(): Promise<SessionUser | null> {
-  sessionUser ??= authClient
-    .getSession()
-    .then(({ data }) => (data ? { id: data.user.id, email: data.user.email, name: data.user.name } : null))
+  sessionUser ??= fetch("/api/me", { credentials: "same-origin" })
+    .then(async (res) => {
+      if (res.status === 401) return null;
+      if (!res.ok) throw new Error(`Session lookup failed (${res.status})`);
+      const { id, email, name, isAdmin } = (await res.json()) as SessionUser;
+      return { id, email, name, isAdmin: isAdmin === true };
+    })
     .catch(() => {
       sessionUser = null;
       return null;

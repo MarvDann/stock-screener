@@ -21,11 +21,12 @@ app.use(createTickersRouter({ lookupTicker, onChange }));
 let server: ReturnType<typeof app.listen>;
 let baseUrl: string;
 const { cookie } = await createTestUser();
+const admin = await createTestUser("admin@example.com");
 
-function request(method: string, path: string, body?: unknown) {
+function request(method: string, path: string, body?: unknown, as = cookie) {
   return fetch(`${baseUrl}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", Cookie: cookie },
+    headers: { "Content-Type": "application/json", Cookie: as },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -121,47 +122,57 @@ describe("tickers", () => {
   });
 
   it("renames a ticker", async () => {
-    const res = await request("PATCH", "/api/tickers/aapl", { name: "Apple Inc." });
+    const res = await request("PATCH", "/api/tickers/aapl", { name: "Apple Inc." }, admin.cookie);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ...seeded("AAPL"), name: "Apple Inc." });
     expect(getTickerName("AAPL")).toBe("Apple Inc.");
   });
 
   it("sets and clears a custom group, leaving the name alone", async () => {
-    const set = await request("PATCH", "/api/tickers/MSFT", { customGroup: "  Cloud   Platforms " });
+    const set = await request("PATCH", "/api/tickers/MSFT", { customGroup: "  Cloud   Platforms " }, admin.cookie);
     expect(set.status).toBe(200);
     expect(await set.json()).toEqual({ ...seeded("MSFT"), customGroup: "Cloud Platforms" });
 
-    const cleared = await request("PATCH", "/api/tickers/MSFT", { customGroup: "" });
+    const cleared = await request("PATCH", "/api/tickers/MSFT", { customGroup: "" }, admin.cookie);
     expect(await cleared.json()).toEqual(seeded("MSFT"));
-    await request("PATCH", "/api/tickers/MSFT", { customGroup: "Cloud Platforms" });
-    const nulled = await request("PATCH", "/api/tickers/MSFT", { customGroup: null });
+    await request("PATCH", "/api/tickers/MSFT", { customGroup: "Cloud Platforms" }, admin.cookie);
+    const nulled = await request("PATCH", "/api/tickers/MSFT", { customGroup: null }, admin.cookie);
     expect((await nulled.json()).customGroup).toBeNull();
   });
 
   it("updates the name and custom group together", async () => {
-    const res = await request("PATCH", "/api/tickers/MSFT", { name: "Microsoft Corp", customGroup: "Cloud" });
+    const res = await request("PATCH", "/api/tickers/MSFT", { name: "Microsoft Corp", customGroup: "Cloud" }, admin.cookie);
     expect(await res.json()).toMatchObject({ name: "Microsoft Corp", customGroup: "Cloud" });
-    await request("PATCH", "/api/tickers/MSFT", { name: seeded("MSFT").name, customGroup: null });
+    await request("PATCH", "/api/tickers/MSFT", { name: seeded("MSFT").name, customGroup: null }, admin.cookie);
+  });
+
+  it("only lets an admin edit a ticker", async () => {
+    const res = await request("PATCH", "/api/tickers/MSFT", { name: "Microsoft Corp" });
+    expect(res.status).toBe(403);
+    expect(listTickers().find((t) => t.symbol === "MSFT")).toMatchObject({ name: seeded("MSFT").name, customGroup: seeded("MSFT").customGroup });
   });
 
   it("rejects an invalid custom group or an empty update", async () => {
-    expect((await request("PATCH", "/api/tickers/MSFT", { customGroup: 42 })).status).toBe(400);
-    expect((await request("PATCH", "/api/tickers/MSFT", { customGroup: "x".repeat(51) })).status).toBe(400);
-    expect((await request("PATCH", "/api/tickers/MSFT", {})).status).toBe(400);
+    expect((await request("PATCH", "/api/tickers/MSFT", { customGroup: 42 }, admin.cookie)).status).toBe(400);
+    expect((await request("PATCH", "/api/tickers/MSFT", { customGroup: "x".repeat(51) }, admin.cookie)).status).toBe(400);
+    expect((await request("PATCH", "/api/tickers/MSFT", {}, admin.cookie)).status).toBe(400);
   });
 
   it("returns 404 when renaming an unknown ticker", async () => {
-    const res = await request("PATCH", "/api/tickers/NOPE", { name: "x" });
+    const res = await request("PATCH", "/api/tickers/NOPE", { name: "x" }, admin.cookie);
     expect(res.status).toBe(404);
   });
 
-  it("deletes a ticker", async () => {
-    const res = await request("DELETE", "/api/tickers/ABCD-B");
+  it("only lets an admin delete a ticker", async () => {
+    const refused = await request("DELETE", "/api/tickers/ABCD-B");
+    expect(refused.status).toBe(403);
+    expect(listSymbols()).toContain("ABCD-B");
+
+    const res = await request("DELETE", "/api/tickers/ABCD-B", undefined, admin.cookie);
     expect(res.status).toBe(204);
     expect(listSymbols()).not.toContain("ABCD-B");
 
-    const again = await request("DELETE", "/api/tickers/ABCD-B");
+    const again = await request("DELETE", "/api/tickers/ABCD-B", undefined, admin.cookie);
     expect(again.status).toBe(404);
   });
 

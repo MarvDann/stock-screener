@@ -2,8 +2,11 @@
 import { computed, onMounted, ref } from "vue";
 import { addTicker, deleteTicker, fetchTickers, updateTicker } from "../api";
 import type { Ticker } from "../types";
+import { useIsAdmin } from "../composables/useIsAdmin";
 
 const tickers = ref<Ticker[]>([]);
+// Editing or removing a ticker changes everyone's screens, so only admins can.
+const isAdmin = useIsAdmin();
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -179,8 +182,8 @@ onMounted(load);
               </td>
               <td class="actions">
                 <template v-if="editingSymbol !== t.symbol">
-                  <button class="btn-ghost edit-btn" @click="startEdit(t)">Edit</button>
-                  <button class="btn-ghost remove-btn" @click="remove(t)">Remove</button>
+                  <button v-if="isAdmin" class="btn-ghost edit-btn" @click="startEdit(t)">Edit</button>
+                  <button v-if="isAdmin" class="btn-ghost remove-btn" @click="remove(t)">Remove</button>
                 </template>
               </td>
             </tr>

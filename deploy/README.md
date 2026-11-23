@@ -68,6 +68,7 @@ DATABASE_URL=postgres://stockwatch:...@127.0.0.1:5432/stockwatch
 BETTER_AUTH_SECRET=...           # openssl rand -base64 32; changing it signs everyone out
 APP_URL=https://stockwatch.cloud
 ALLOWED_EMAILS=...               # comma-separated
+ADMIN_EMAILS=...                 # comma-separated; can edit/remove tickers and ETFs, see the Users page
 RESEND_API_KEY=...               # needed for verification and reset emails
 EMAIL_FROM=StockWatch <noreply@stockwatch.cloud>   # once the domain is verified in Resend
 GOOGLE_CLIENT_ID=... / GOOGLE_CLIENT_SECRET=...

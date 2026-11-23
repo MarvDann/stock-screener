@@ -11,6 +11,7 @@ import type {
   StockDetail,
   StocksResponse,
   Ticker,
+  UserSummary,
   VolatilityResponse,
   Watchlist,
 } from "./types";
@@ -133,6 +134,12 @@ export function updateTicker(symbol: string, changes: { name?: string; customGro
 
 export function deleteTicker(symbol: string): Promise<void> {
   return fetchJson<void>(`/api/tickers/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+}
+
+/** Admins only. */
+export async function fetchUsers(): Promise<UserSummary[]> {
+  const { users } = await fetchJson<{ users: UserSummary[] }>("/api/admin/users");
+  return users;
 }
 
 export async function fetchWatchlists(): Promise<Watchlist[]> {

@@ -7,8 +7,11 @@ import { createMailer, Mailer } from "./email";
 const APP_URL = (process.env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "");
 const NOT_INVITED = "This email isn't on the invite list";
 
-/** Only these emails (comma-separated in ALLOWED_EMAILS, any case) can sign up or sign in. Unset allows everyone. */
-export function parseAllowlist(raw = process.env.ALLOWED_EMAILS): Set<string> | null {
+/**
+ * A comma-separated list of emails (ALLOWED_EMAILS, ADMIN_EMAILS), lowercased;
+ * null when empty or unset.
+ */
+export function parseEmailList(raw: string | undefined): Set<string> | null {
   const emails = (raw ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
@@ -46,7 +49,8 @@ export interface AuthOptionsDeps {
  * httpOnly cookies backed by the `session` table.
  */
 export function createAuthOptions({ mailer = createMailer(), env = process.env }: AuthOptionsDeps = {}) {
-  const allowlist = parseAllowlist(env.ALLOWED_EMAILS);
+  // Only these emails can sign up or sign in. Unset allows everyone.
+  const allowlist = parseEmailList(env.ALLOWED_EMAILS);
   const isAllowed = (email: string) => !allowlist || allowlist.has(email.toLowerCase());
 
   return {

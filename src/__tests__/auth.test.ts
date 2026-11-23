@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import express from "express";
 import { betterAuth } from "better-auth";
 import { toNodeHandler } from "better-auth/node";
-import { createAuthOptions, parseAllowlist } from "../auth";
+import { createAuthOptions, parseEmailList } from "../auth";
 import { requireAuth } from "../middleware/requireAuth";
 import { queryOne } from "../db";
 import type { EmailMessage, Mailer } from "../email";
@@ -68,11 +68,11 @@ async function signUpVerified(email: string, password = "original-pass") {
   expect((await followEmailLink(email)).status).toBe(302);
 }
 
-describe("parseAllowlist", () => {
+describe("parseEmailList", () => {
   it("normalises case and spacing, and treats an empty list as no restriction", () => {
-    expect(parseAllowlist(" A@x.com,b@X.com ,")).toEqual(new Set(["a@x.com", "b@x.com"]));
-    expect(parseAllowlist("")).toBeNull();
-    expect(parseAllowlist(undefined)).toBeNull();
+    expect(parseEmailList(" A@x.com,b@X.com ,")).toEqual(new Set(["a@x.com", "b@x.com"]));
+    expect(parseEmailList("")).toBeNull();
+    expect(parseEmailList(undefined)).toBeNull();
   });
 });
 

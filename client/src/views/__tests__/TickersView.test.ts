@@ -7,6 +7,8 @@ const fetchTickers = vi.fn();
 const addTicker = vi.fn();
 const updateTicker = vi.fn();
 const deleteTicker = vi.fn();
+const getSessionUser = vi.fn();
+vi.mock("../../auth", () => ({ getSessionUser: () => getSessionUser() }));
 vi.mock("../../api", () => ({
   fetchTickers: (...args: unknown[]) => fetchTickers(...args),
   addTicker: (...args: unknown[]) => addTicker(...args),
@@ -29,6 +31,10 @@ async function mountView() {
   await flushPromises();
   return wrapper;
 }
+
+beforeEach(() => {
+  getSessionUser.mockReset().mockResolvedValue({ id: "u1", email: "admin@example.com", name: "Admin", isAdmin: true });
+});
 
 beforeEach(() => {
   fetchTickers.mockReset().mockResolvedValue([
@@ -156,6 +162,14 @@ describe("TickersView", () => {
     await wrapper.find(".filter-input").setValue("cloud");
 
     expect(wrapper.findAll("tbody tr").map((r) => r.find(".symbol").text())).toEqual(["MSFT"]);
+  });
+
+  it("only offers Edit and Remove to admins", async () => {
+    getSessionUser.mockResolvedValue({ id: "u2", email: "member@example.com", name: "Member", isAdmin: false });
+    const wrapper = await mountView();
+    expect(wrapper.find(".remove-btn").exists()).toBe(false);
+    expect(wrapper.find(".edit-btn").exists()).toBe(false);
+    expect(wrapper.find(".add-form").exists()).toBe(true);
   });
 
   it("removes a ticker after confirmation", async () => {

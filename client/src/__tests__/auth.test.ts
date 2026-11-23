@@ -1,42 +1,50 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const getSession = vi.fn();
-vi.mock("better-auth/vue", () => ({
-  createAuthClient: () => ({ getSession: () => getSession() }),
-}));
+vi.mock("better-auth/vue", () => ({ createAuthClient: () => ({}) }));
+
+const meResponse = (status: number, body: unknown = {}) => ({ ok: status < 400, status, json: () => Promise.resolve(body) });
 
 describe("auth", () => {
   beforeEach(() => {
     vi.resetModules();
-    getSession.mockReset();
     vi.unstubAllGlobals();
   });
 
   it("looks the session up once and caches it until cleared", async () => {
-    getSession.mockResolvedValue({ data: { user: { id: "u1", email: "me@example.com", name: "me" } } });
+    const fetchMock = vi.fn().mockResolvedValue(meResponse(200, { id: "u1", email: "me@example.com", name: "me", isAdmin: true }));
+    vi.stubGlobal("fetch", fetchMock);
     const { getSessionUser, clearSessionCache } = await import("../auth");
 
-    expect(await getSessionUser()).toEqual({ id: "u1", email: "me@example.com", name: "me" });
+    expect(await getSessionUser()).toEqual({ id: "u1", email: "me@example.com", name: "me", isAdmin: true });
+    expect(fetchMock).toHaveBeenCalledWith("/api/me", expect.anything());
     await getSessionUser();
-    expect(getSession).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     clearSessionCache();
     await getSessionUser();
-    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a missing admin flag as not an admin", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(meResponse(200, { id: "u1", email: "me@example.com", name: "me" })));
+    const { getSessionUser } = await import("../auth");
+    expect((await getSessionUser())?.isAdmin).toBe(false);
   });
 
   it("is null when signed out", async () => {
-    getSession.mockResolvedValue({ data: null });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(meResponse(401)));
     const { getSessionUser } = await import("../auth");
     expect(await getSessionUser()).toBeNull();
   });
 
   it("doesn't cache a failed lookup", async () => {
-    getSession.mockRejectedValueOnce(new Error("offline")).mockResolvedValue({ data: null });
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(meResponse(500)).mockResolvedValue(meResponse(401));
+    vi.stubGlobal("fetch", fetchMock);
     const { getSessionUser } = await import("../auth");
     expect(await getSessionUser()).toBeNull();
+    expect(await getSessionUser()).toBeNull();
     await getSessionUser();
-    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("fetches the configured providers, empty when the request fails", async () => {

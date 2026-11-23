@@ -2,7 +2,7 @@
 import { useRouter, useRoute } from "vue-router";
 import { computed, onMounted, ref, watch } from "vue";
 import { Menu, X } from "lucide-vue-next";
-import { authClient, clearSessionCache } from "./auth";
+import { authClient, clearSessionCache, getSessionUser } from "./auth";
 import { useTheme } from "./composables/useTheme";
 import ThemeSwitcher from "./components/ThemeSwitcher.vue";
 import BrandLogo from "./components/BrandLogo.vue";
@@ -18,6 +18,16 @@ const { initTheme } = useTheme();
 const showSidebar = computed(() => !route.meta.public);
 
 onMounted(initTheme);
+
+// Admin-only links. Re-checked on navigation, since the session changes on sign-in and sign-out.
+const isAdmin = ref(false);
+watch(
+  () => route.fullPath,
+  async () => {
+    isAdmin.value = !route.meta.public && ((await getSessionUser())?.isAdmin ?? false);
+  },
+  { immediate: true }
+);
 
 // On phones the nav collapses behind a menu button; picking a page closes it.
 const menuOpen = ref(false);
@@ -62,6 +72,7 @@ async function logout() {
           <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>
           <RouterLink to="/industry-groups" class="nav-link">Industry Groups</RouterLink>
           <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
+          <RouterLink v-if="isAdmin" to="/users" class="nav-link">Users</RouterLink>
         </div>
         <div class="sidebar-bottom">
           <RouterLink to="/account" class="nav-link">Account</RouterLink>

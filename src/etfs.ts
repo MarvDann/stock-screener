@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { execute, query, Queryable } from "./db";
-import { requireAuth } from "./middleware/requireAuth";
+import { requireAdmin, requireAuth } from "./middleware/requireAuth";
 import { SECTOR_ETFS } from "./screens/sectorRotationScreen";
 import { normalizeSymbol } from "./tickers";
 
@@ -239,7 +239,8 @@ export function createEtfsRouter({ lookupEtf }: EtfsRouterDeps): Router {
     res.status(201).json({ symbol: etf.symbol, name: etf.name, category: etf.category });
   });
 
-  router.patch("/api/etfs/:symbol", requireAuth, async (req: Request, res: Response) => {
+  // Admins only: renaming or moving an ETF changes everyone's list.
+  router.patch("/api/etfs/:symbol", requireAdmin, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     const current = getEtf(symbol);
     if (!current) {
@@ -265,7 +266,7 @@ export function createEtfsRouter({ lookupEtf }: EtfsRouterDeps): Router {
     res.json({ symbol, name, category });
   });
 
-  router.delete("/api/etfs/:symbol", requireAuth, async (req: Request, res: Response) => {
+  router.delete("/api/etfs/:symbol", requireAdmin, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     if (SECTOR_FUNDS.some((e) => e.symbol === symbol)) {
       res.status(403).json({ error: "US Sectors ETFs are fixed by the Sector Rotation page" });

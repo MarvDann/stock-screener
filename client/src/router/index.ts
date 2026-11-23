@@ -15,6 +15,7 @@ import WatchlistsView from "../views/WatchlistsView.vue";
 import EarningsView from "../views/EarningsView.vue";
 import VolatilityView from "../views/VolatilityView.vue";
 import IndustryGroupsView from "../views/IndustryGroupsView.vue";
+import UsersView from "../views/UsersView.vue";
 import { getSessionUser } from "../auth";
 
 // `title` names a page for the stock detail page's back button.
@@ -38,6 +39,7 @@ const router = createRouter({
     { path: "/sector-drilldown", name: "sector-drilldown", component: SectorDrilldownView, meta: { title: "Sector Drilldown" } },
     { path: "/industry-groups", name: "industry-groups", component: IndustryGroupsView, meta: { title: "Industry Groups" } },
     { path: "/tickers", name: "tickers", component: TickersView, meta: { title: "Tickers" } },
+    { path: "/users", name: "users", component: UsersView, meta: { title: "Users", admin: true } },
   ],
 });
 
@@ -50,6 +52,10 @@ router.beforeEach(async (to) => {
     return { name: "login", query: typeof to.query.error === "string" ? { error: to.query.error } : {} };
   }
   if (to.name === "login" && user) {
+    return { name: "home" };
+  }
+  // The server refuses non-admins too; this just keeps them off an empty page.
+  if (to.meta.admin && !user?.isAdmin) {
     return { name: "home" };
   }
 });

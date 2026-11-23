@@ -116,7 +116,7 @@ docker compose database; without `BETTER_AUTH_SECRET` a development secret
 is used (Better Auth warns about it at startup); and without Resend settings
 emails (verification, password reset) are printed to the server console
 instead of sent, so every flow still works. Without `ALLOWED_EMAILS`, anyone
-can sign up locally.
+can sign up locally; without `ADMIN_EMAILS`, nobody is an admin.
 
 ## Running
 
@@ -139,6 +139,11 @@ be signed out server-side.
   (any method). Taking an email off the list locks that account out at its
   next sign-in. Sign-ups from other emails get the same "check your email"
   response as real ones, so the list can't be probed.
+- **Admins:** emails in `ADMIN_EMAILS` are admins. Everyone can add tickers
+  and ETFs, but only admins can edit or remove them (names, custom groups, ETF
+  categories), since those change everyone's screens. Only admins see the
+  **Users** page listing every account, its sign-in methods and when it was
+  last active. An admin still needs to be on `ALLOWED_EMAILS` to sign in.
 - **Email verification:** password accounts must verify their email before
   the first sign-in, so nobody can claim an invited address first.
 - **Linking:** signing in with Google or GitHub under an existing account's

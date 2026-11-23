@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { execute, query, Queryable } from "./db";
-import { requireAuth } from "./middleware/requireAuth";
+import { requireAdmin, requireAuth } from "./middleware/requireAuth";
 import type { TickerProfile } from "./types";
 import SEED_TICKERS from "./seed/tickers.json";
 
@@ -209,7 +209,8 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
   });
 
   // Updates the name, the custom group, or both; fields left out are unchanged.
-  router.patch("/api/tickers/:symbol", requireAuth, async (req: Request, res: Response) => {
+  // Admins only: names and groups show on everyone's screens.
+  router.patch("/api/tickers/:symbol", requireAdmin, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     const body = req.body ?? {};
     const updates: [column: string, value: string | null][] = [];
@@ -246,7 +247,7 @@ export function createTickersRouter({ lookupTicker, onChange }: TickersRouterDep
     res.json(updated);
   });
 
-  router.delete("/api/tickers/:symbol", requireAuth, async (req: Request, res: Response) => {
+  router.delete("/api/tickers/:symbol", requireAdmin, async (req: Request, res: Response) => {
     const symbol = String(req.params.symbol).toUpperCase();
     const deleted = await execute("DELETE FROM tickers WHERE symbol = $1", [symbol]);
     tickers.delete(symbol);

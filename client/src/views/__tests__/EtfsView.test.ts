@@ -13,6 +13,8 @@ const fetchStocks = vi.fn();
 const addEtf = vi.fn();
 const updateEtf = vi.fn();
 const deleteEtf = vi.fn();
+const getSessionUser = vi.fn();
+vi.mock("../../auth", () => ({ getSessionUser: () => getSessionUser() }));
 vi.mock("../../api", () => ({
   fetchEtfs: (...args: unknown[]) => fetchEtfs(...args),
   fetchStocks: (...args: unknown[]) => fetchStocks(...args),
@@ -48,6 +50,10 @@ const chip = (wrapper: Awaited<ReturnType<typeof mountView>>, label: string) =>
   wrapper.findAll(".chip").find((c) => c.text().startsWith(label))!;
 
 let router: Router;
+
+beforeEach(() => {
+  getSessionUser.mockReset().mockResolvedValue({ id: "u1", email: "admin@example.com", name: "Admin", isAdmin: true });
+});
 
 beforeEach(async () => {
   router = await routerAt();
@@ -176,6 +182,16 @@ describe("EtfsView", () => {
       await wrapper.find(".edit-toggle").trigger("click");
       expect(wrapper.find(".etf-table").exists()).toBe(false);
       expect(cardSymbols(wrapper)).toHaveLength(5);
+    });
+
+    it("lets members add but not rename, move or remove", async () => {
+      getSessionUser.mockResolvedValue({ id: "u2", email: "member@example.com", name: "Member", isAdmin: false });
+      const wrapper = await mountEditing();
+      expect(row(wrapper, "SPY").findAll("button")).toHaveLength(0);
+      expect(row(wrapper, "SPY").find("select").exists()).toBe(false);
+      expect(row(wrapper, "SPY").text()).toContain("US Market");
+      expect(row(wrapper, "XLK").text()).toContain("Fixed");
+      expect(wrapper.find(".add-form").exists()).toBe(true);
     });
 
     it("offers only editable categories, defaulting to the one being viewed", async () => {

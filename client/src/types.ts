@@ -347,3 +347,17 @@ export interface IndustryGroupsResponse {
   groups: IndustryGroup[];
   warnings: string[];
 }
+
+/** An account, as the admin Users page lists it. */
+export interface UserSummary {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  isAdmin: boolean;
+  /** "credential" (email and password), "google", "github". */
+  signInMethods: string[];
+  createdAt: string;
+  /** Null if they've never signed in. */
+  lastActiveAt: string | null;
+}
