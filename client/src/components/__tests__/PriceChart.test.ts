@@ -5,6 +5,7 @@ import type { DailyBar } from "../../types";
 
 const series = () => ({
   setData: vi.fn(),
+  applyOptions: vi.fn(),
   priceScale: () => ({ applyOptions: vi.fn() }),
 });
 
@@ -46,7 +47,7 @@ beforeEach(() => {
 
 describe("PriceChart", () => {
   it("leaves wheel and two-finger trackpad scrolling to the page", () => {
-    mount(PriceChart, { props: { bars: [makeBar({ date: "2024-01-02" })], sma50Series: [NaN], sma150Series: [NaN] } });
+    mount(PriceChart, { props: { bars: [makeBar({ date: "2024-01-02" })], movingAverages: [{ values: [NaN], color: "#ff0" }, { values: [NaN], color: "#a0f" }] } });
 
     const options = createChart.mock.calls[0][1] as {
       handleScroll: { mouseWheel: boolean; pressedMouseMove: boolean };
@@ -62,8 +63,7 @@ describe("PriceChart", () => {
     mount(PriceChart, {
       props: {
         bars: [makeBar({ date: "2024-01-02" }), makeBar({ date: "2024-01-03" })],
-        sma50Series: [NaN, 10.5],
-        sma150Series: [NaN, NaN],
+        movingAverages: [{ values: [NaN, 10.5], color: "#ff0" }, { values: [NaN, NaN], color: "#a0f" }],
       },
     });
 
@@ -77,8 +77,7 @@ describe("PriceChart", () => {
     mount(PriceChart, {
       props: {
         bars: [makeBar({ date: "2024-01-02" }), makeBar({ date: "2024-01-03" })],
-        sma50Series: [NaN, 10.5],
-        sma150Series: [NaN, NaN],
+        movingAverages: [{ values: [NaN, 10.5], color: "#ff0" }, { values: [NaN, NaN], color: "#a0f" }],
       },
     });
 
@@ -93,8 +92,7 @@ describe("PriceChart", () => {
     const wrapper = mount(PriceChart, {
       props: {
         bars: [makeBar()],
-        sma50Series: [10],
-        sma150Series: [10],
+        movingAverages: [{ values: [10], color: "#ff0" }, { values: [10], color: "#a0f" }],
       },
     });
 
@@ -108,7 +106,7 @@ describe("PriceChart", () => {
 
   it("removes the chart and disconnects the resize observer on unmount", () => {
     const wrapper = mount(PriceChart, {
-      props: { bars: [makeBar()], sma50Series: [10], sma150Series: [10] },
+      props: { bars: [makeBar()], movingAverages: [{ values: [10], color: "#ff0" }, { values: [10], color: "#a0f" }] },
     });
 
     wrapper.unmount();
@@ -123,8 +121,7 @@ describe("PriceChart", () => {
           makeBar({ date: "2024-01-02T00:00:00Z", open: 10, high: 12.5, low: 9.25, close: 11, volume: 1234567 }),
           makeBar({ date: "2024-01-03T00:00:00Z", open: 11, high: 11.5, low: 10, close: 10.5, volume: 2000 }),
         ],
-        sma50Series: [NaN, NaN],
-        sma150Series: [NaN, NaN],
+        movingAverages: [{ values: [NaN, NaN], color: "#ff0" }, { values: [NaN, NaN], color: "#a0f" }],
       },
     });
     const onMove = chart.subscribeCrosshairMove.mock.calls[0][0] as (p: { time?: string }) => void;
@@ -146,5 +143,49 @@ describe("PriceChart", () => {
     onMove({});
     await wrapper.vm.$nextTick();
     expect(legend().text()).toContain("C: 10.50");
+  });
+
+  it("draws one line per moving average, hiding the ones switched off", () => {
+    mount(PriceChart, {
+      props: {
+        bars: [makeBar()],
+        movingAverages: [
+          { values: [10], color: "#ff0" },
+          { values: [9], color: "#a0f", visible: false },
+          { values: [8], color: "#f00" },
+        ],
+      },
+    });
+
+    expect(chart.addLineSeries).toHaveBeenCalledTimes(3);
+    expect(chart.addLineSeries.mock.calls.map((c) => (c as unknown as [{ color: string; visible: boolean }])[0])).toMatchObject([
+      { color: "rgba(255, 255, 0, 0.75)", visible: true },
+      { color: "rgba(170, 0, 255, 0.75)", visible: false },
+      { color: "rgba(255, 0, 0, 0.75)", visible: true },
+    ]);
+  });
+
+  it("toggles a line's visibility without redrawing the chart", async () => {
+    const ma200 = [8];
+    const wrapper = mount(PriceChart, {
+      props: { bars: [makeBar()], movingAverages: [{ values: [10], color: "#ff0" }, { values: ma200, color: "#f00" }] },
+    });
+    const fast = chart.addLineSeries.mock.results[0].value;
+    const slow = chart.addLineSeries.mock.results[1].value;
+    const first = wrapper.props("movingAverages")[0];
+
+    await wrapper.setProps({ movingAverages: [first, { values: ma200, color: "#f00", visible: false }] });
+
+    expect(createChart).toHaveBeenCalledTimes(1);
+    expect(slow.applyOptions).toHaveBeenCalledWith({ visible: false, lastValueVisible: false });
+    expect(fast.applyOptions).toHaveBeenCalledWith({ visible: true, lastValueVisible: true });
+  });
+
+  it("adds the moving averages before the candles so they draw behind them", () => {
+    mount(PriceChart, { props: { bars: [makeBar()], movingAverages: [{ values: [10], color: "#ff0" }] } });
+
+    const [lineOrder] = chart.addLineSeries.mock.invocationCallOrder;
+    const [candleOrder] = chart.addCandlestickSeries.mock.invocationCallOrder;
+    expect(lineOrder).toBeLessThan(candleOrder);
   });
 });

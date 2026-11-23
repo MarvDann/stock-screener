@@ -21,6 +21,7 @@ function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
     bars: [],
     sma50Series: [190],
     sma150Series: [180],
+    sma200Series: [170],
     details: {
       close: 190.5,
       sma50: 180,
@@ -381,6 +382,7 @@ describe("StockDetailView chart timeframes", () => {
   };
 
   beforeEach(async () => {
+    localStorage.clear();
     await router.replace("/breakout");
     fetchStockDetail.mockResolvedValue(makeStockDetail({ bars: [dailyBar] }));
   });
@@ -389,15 +391,18 @@ describe("StockDetailView chart timeframes", () => {
     return wrapper.findAll(".legend-item").map((item) => item.text());
   }
 
-  it("starts on the daily chart with the 50 and 150-day SMAs, without fetching another chart", async () => {
+  it("starts on the daily chart with the 50, 150 and 200-day SMAs, without fetching another chart", async () => {
     const wrapper = await mountView();
     expect(wrapper.find(".timeframe-btn.active").text()).toBe("Daily");
     expect(wrapper.findComponent(PriceChart).props()).toMatchObject({
       bars: [dailyBar],
-      sma50Series: [190],
-      sma150Series: [180],
+      movingAverages: [
+        { values: [190], color: "#facc15", visible: true },
+        { values: [180], color: "#a78bfa", visible: true },
+        { values: [170], color: "#ef4444", visible: true },
+      ],
     });
-    expect(legendText(wrapper)).toEqual(["50-day SMA", "150-day SMA"]);
+    expect(legendText(wrapper)).toEqual(["50-day SMA", "150-day SMA", "200-day SMA"]);
     expect(fetchStockChart).not.toHaveBeenCalled();
   });
 
@@ -412,8 +417,7 @@ describe("StockDetailView chart timeframes", () => {
     expect(router.currentRoute.value.query.chart).toBe("weekly");
     expect(wrapper.findComponent(PriceChart).props()).toMatchObject({
       bars: [weeklyBar],
-      sma50Series: [1.8],
-      sma150Series: [1.6],
+      movingAverages: [{ values: [1.8] }, { values: [1.6] }],
     });
     expect(legendText(wrapper)).toEqual(["10-week SMA", "30-week SMA"]);
 
@@ -421,6 +425,22 @@ describe("StockDetailView chart timeframes", () => {
     await weekly.trigger("click");
     await flushPromises();
     expect(fetchStockChart).toHaveBeenCalledTimes(1);
+  });
+
+  it("toggles a moving average from the legend and remembers it", async () => {
+    const wrapper = await mountView();
+    const ma200 = () => wrapper.findAll(".legend-item")[2];
+    expect(ma200().attributes("aria-pressed")).toBe("true");
+
+    await ma200().trigger("click");
+    expect(ma200().attributes("aria-pressed")).toBe("false");
+    expect(wrapper.findComponent(PriceChart).props("movingAverages")[2].visible).toBe(false);
+    expect(JSON.parse(localStorage.getItem("chart-moving-averages")!)).toEqual({ fast: true, slow: true, long: false });
+
+    wrapper.unmount();
+    const again = await mountView();
+    expect(again.findComponent(PriceChart).props("movingAverages")[2].visible).toBe(false);
+    expect(again.findComponent(PriceChart).props("movingAverages")[0].visible).toBe(true);
   });
 
   it("opens on the timeframe in the URL", async () => {

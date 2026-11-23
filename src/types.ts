@@ -172,6 +172,7 @@ export interface StockDetailResponse {
   bars: DailyBar[];
   sma50Series: number[];
   sma150Series: number[];
+  sma200Series: number[];
   details: BreakoutScreenResult["details"] | null;
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */

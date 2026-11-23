@@ -3,19 +3,24 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ColorType, createChart, LineStyle, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import type { DailyBar } from "../types";
 import { useTheme } from "../composables/useTheme";
-import { CHART_THEMES } from "../utils/chartTheme";
+import { CHART_THEMES, SMA_LINE_OPACITY, withAlpha } from "../utils/chartTheme";
 import { formatAbbreviatedNumber } from "../utils/format";
 
-const props = withDefaults(
-  defineProps<{ bars: DailyBar[]; sma50Series: number[]; sma150Series: number[]; height?: number }>(),
-  { height: 200 }
-);
+/** One moving-average line; hidden lines keep their data so toggling is instant. */
+export interface MovingAverageLine {
+  values: number[];
+  color: string;
+  visible?: boolean;
+}
+
+const props = withDefaults(defineProps<{ bars: DailyBar[]; movingAverages: MovingAverageLine[]; height?: number }>(), {
+  height: 200,
+});
 const container = ref<HTMLDivElement | null>(null);
 const { theme } = useTheme();
 let chart: IChartApi | null = null;
 let candleSeries: ISeriesApi<"Candlestick"> | null = null;
-let sma50Series: ISeriesApi<"Line"> | null = null;
-let sma150Series: ISeriesApi<"Line"> | null = null;
+let maSeries: ISeriesApi<"Line">[] = [];
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let resizeObserver: ResizeObserver | null = null;
 const hoveredBar = ref<DailyBar | null>(null);
@@ -52,6 +57,23 @@ function render() {
     // pan by dragging the chart, zoom by dragging an axis.
     handleScroll: { mouseWheel: false, pressedMouseMove: true },
     handleScale: { axisPressedMouseMove: true, mouseWheel: false, pinch: true },
+  });
+
+  // Series draw in the order they're added, so the moving averages go first to sit behind the candles.
+  maSeries = props.movingAverages.map((ma) => {
+    const line = chart!.addLineSeries({
+      color: withAlpha(ma.color, SMA_LINE_OPACITY),
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: ma.visible !== false,
+      visible: ma.visible !== false,
+    });
+    line.setData(
+      props.bars
+        .map((b, i) => ({ time: b.date.slice(0, 10), value: ma.values[i] }))
+        .filter((p) => p.value != null && !Number.isNaN(p.value))
+    );
+    return line;
   });
 
   candleSeries = chart.addCandlestickSeries({
@@ -92,28 +114,6 @@ function render() {
     }))
   );
 
-  sma50Series = chart.addLineSeries({
-    color: "#facc15",
-    lineWidth: 1,
-    priceLineVisible: false,
-  });
-  sma50Series.setData(
-    props.bars
-      .map((b, i) => ({ time: b.date.slice(0, 10), value: props.sma50Series[i] }))
-      .filter((p) => p.value != null && !Number.isNaN(p.value))
-  );
-
-  sma150Series = chart.addLineSeries({
-    color: "#a78bfa",
-    lineWidth: 1,
-    priceLineVisible: false,
-  });
-  sma150Series.setData(
-    props.bars
-      .map((b, i) => ({ time: b.date.slice(0, 10), value: props.sma150Series[i] }))
-      .filter((p) => p.value != null && !Number.isNaN(p.value))
-  );
-
   const barsByTime = new Map(props.bars.map((b) => [b.date.slice(0, 10), b]));
   hoveredBar.value = null;
   chart.subscribeCrosshairMove((param) => {
@@ -134,7 +134,20 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   chart?.remove();
 });
-watch([() => props.bars, theme], render);
+const sameLines = (a: MovingAverageLine[], b: MovingAverageLine[]) =>
+  a.length === b.length && a.every((ma, i) => ma.values === b[i].values && ma.color === b[i].color);
+
+// New bars, lines or theme redraw the chart; a visibility toggle alone just shows or hides a line.
+watch([() => props.bars, () => props.movingAverages, theme], ([bars, lines, t], [prevBars, prevLines, prevTheme]) => {
+  if (bars !== prevBars || t !== prevTheme || !sameLines(lines, prevLines)) {
+    render();
+    return;
+  }
+  lines.forEach((ma, i) => {
+    const visible = ma.visible !== false;
+    maSeries[i]?.applyOptions({ visible, lastValueVisible: visible });
+  });
+});
 </script>
 
 <template>

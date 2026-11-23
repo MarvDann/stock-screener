@@ -7,6 +7,7 @@ import { useQueryParam } from "../composables/useQueryParam";
 import PriceChart from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
 import WatchlistMenu from "../components/WatchlistMenu.vue";
+import { SMA_COLORS, SMA_LINE_OPACITY, withAlpha } from "../utils/chartTheme";
 import {
   formatAbbreviatedCurrency,
   formatContractions,
@@ -78,26 +79,64 @@ function selectTimeframe(tf: ChartTimeframe) {
   loadChart(tf);
 }
 
+/** The moving-average slots, in legend order; weekly and monthly charts have no long line. */
+type MaSlot = "fast" | "slow" | "long";
+const MA_SLOTS: MaSlot[] = ["fast", "slow", "long"];
+const MA_COLORS: Record<MaSlot, string> = { fast: SMA_COLORS.sma50, slow: SMA_COLORS.sma150, long: SMA_COLORS.sma200 };
+
+/** Which moving averages are switched on, remembered across stocks and visits. */
+const MA_VISIBILITY_KEY = "chart-moving-averages";
+const maVisible = ref<Record<MaSlot, boolean>>(
+  (() => {
+    const all = { fast: true, slow: true, long: true };
+    try {
+      const stored = JSON.parse(localStorage.getItem(MA_VISIBILITY_KEY) ?? "null");
+      if (stored && typeof stored === "object") {
+        for (const slot of MA_SLOTS) if (typeof stored[slot] === "boolean") all[slot] = stored[slot];
+      }
+    } catch {}
+    return all;
+  })()
+);
+
+function toggleMovingAverage(slot: MaSlot) {
+  maVisible.value = { ...maVisible.value, [slot]: !maVisible.value[slot] };
+  try {
+    localStorage.setItem(MA_VISIBILITY_KEY, JSON.stringify(maVisible.value));
+  } catch {}
+}
+
 /** What the price chart draws: the detail's daily bars, or a fetched weekly/monthly chart. */
-const chart = computed(() => {
+const chartSource = computed(() => {
   const unit = TIMEFRAMES.find((t) => t.value === timeframe.value)!.unit;
   if (timeframe.value === "daily") {
     if (!data.value) return null;
     return {
       bars: data.value.bars,
-      fast: data.value.sma50Series,
-      slow: data.value.sma150Series,
-      labels: ["50-day SMA", "150-day SMA"],
+      lines: [
+        { slot: "fast" as const, label: "50-day SMA", values: data.value.sma50Series },
+        { slot: "slow" as const, label: "150-day SMA", values: data.value.sma150Series },
+        { slot: "long" as const, label: "200-day SMA", values: data.value.sma200Series },
+      ],
     };
   }
   const longTerm = longTermCharts.value[timeframe.value];
   if (!longTerm) return null;
+  const [fast, slow] = longTerm.smaPeriods;
   return {
     bars: longTerm.bars,
-    fast: longTerm.smaFastSeries,
-    slow: longTerm.smaSlowSeries,
-    labels: longTerm.smaPeriods.map((n) => `${n}-${unit} SMA`),
+    lines: [
+      { slot: "fast" as const, label: `${fast}-${unit} SMA`, values: longTerm.smaFastSeries },
+      { slot: "slow" as const, label: `${slow}-${unit} SMA`, values: longTerm.smaSlowSeries },
+    ],
   };
+});
+
+const chart = computed(() => {
+  const source = chartSource.value;
+  if (!source) return null;
+  const lines = source.lines.map((line) => ({ ...line, color: MA_COLORS[line.slot], visible: maVisible.value[line.slot] }));
+  return { bars: source.bars, lines };
 });
 
 /** Latest close — from the screen when the stock qualifies, otherwise the last bar. */
@@ -200,8 +239,7 @@ onMounted(() => {
         <PriceChart
           v-if="chart"
           :bars="chart.bars"
-          :sma50-series="chart.fast"
-          :sma150-series="chart.slow"
+          :moving-averages="chart.lines"
           :height="chartHeight"
         />
         <div v-else-if="chartError" class="chart-status error-state">
@@ -212,9 +250,19 @@ onMounted(() => {
         <div v-else-if="chartLoading" class="chart-status loading">Loading chart...</div>
       </div>
 
-      <div v-if="chart" class="legend">
-        <span class="legend-item"><span class="swatch swatch-sma50"></span>{{ chart.labels[0] }}</span>
-        <span class="legend-item"><span class="swatch swatch-sma150"></span>{{ chart.labels[1] }}</span>
+      <div v-if="chart" class="legend" role="group" aria-label="Moving averages">
+        <button
+          v-for="line in chart.lines"
+          :key="line.slot"
+          type="button"
+          class="legend-item"
+          :class="{ off: !line.visible }"
+          :aria-pressed="line.visible"
+          :title="line.visible ? `Hide the ${line.label}` : `Show the ${line.label}`"
+          @click="toggleMovingAverage(line.slot)"
+        >
+          <span class="swatch" :style="{ background: line.visible ? withAlpha(line.color, SMA_LINE_OPACITY) : undefined }"></span>{{ line.label }}
+        </button>
       </div>
 
       <div v-if="data.details || data.financials || data.epsHistory.length > 0" class="stats-grid">
@@ -428,7 +476,8 @@ onMounted(() => {
 }
 .legend {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 10px 0 20px;
   font-size: 12px;
   color: var(--text-secondary);
@@ -437,18 +486,28 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.legend-item:hover {
+  color: var(--text-primary);
+}
+.legend-item.off {
+  opacity: 0.45;
+}
+.legend-item.off .swatch {
+  background: var(--text-muted);
 }
 .swatch {
   display: inline-block;
   width: 14px;
   height: 3px;
   border-radius: 1px;
-}
-.swatch-sma50 {
-  background: #facc15;
-}
-.swatch-sma150 {
-  background: #a78bfa;
 }
 .stats-grid {
   display: grid;

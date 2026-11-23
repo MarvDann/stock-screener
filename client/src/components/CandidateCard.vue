@@ -4,6 +4,7 @@ import { computed } from "vue";
 import type { StockCard } from "../types";
 import { formatContractions, formatPattern, formatPrice } from "../utils/format";
 import PriceChart from "./PriceChart.vue";
+import { SMA_COLORS } from "../utils/chartTheme";
 
 const router = useRouter();
 const props = withDefaults(defineProps<{ candidate: StockCard; showState?: boolean }>(), { showState: false });
@@ -61,7 +62,13 @@ function summary(c: StockCard): string {
         </div>
       </div>
     </div>
-    <PriceChart :bars="props.candidate.bars" :sma50-series="props.candidate.sma50Series" :sma150-series="props.candidate.sma150Series" />
+    <PriceChart
+      :bars="props.candidate.bars"
+      :moving-averages="[
+        { values: props.candidate.sma50Series, color: SMA_COLORS.sma50 },
+        { values: props.candidate.sma150Series, color: SMA_COLORS.sma150 },
+      ]"
+    />
     <p class="summary">{{ summary(props.candidate) }}</p>
   </div>
 </template>

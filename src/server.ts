@@ -59,7 +59,11 @@ const HOST = process.env.HOST;
 const LOOKBACK_CALENDAR_DAYS = 550;
 const CHART_BARS = 120;
 const DETAIL_CHART_BARS = 252;
-const DETAIL_LOOKBACK_DAYS = 550;
+/**
+ * The detail chart's own history: its 252 bars plus 199 before them to warm up
+ * the 200-day SMA, ~451 trading days, so the line runs the chart's full width.
+ */
+const DETAIL_LOOKBACK_DAYS = 700;
 /**
  * The detail page's longer-term charts: weekly shows ~3 years, monthly ~10,
  * each fetched with enough extra history to warm up the 30-bar SMA. Both use
@@ -73,6 +77,14 @@ const LONG_TERM_SMA_PERIODS: [number, number] = [10, 30];
 const MAX_STOCKS_PER_REQUEST = 24;
 
 const provider: MarketDataProvider = new YahooMarketDataProvider();
+
+/** The history's last `days` calendar days, counted back from its latest bar. */
+function trimToCalendarDays(history: SymbolHistory, days: number): SymbolHistory {
+  const last = history.bars.at(-1);
+  if (!last) return history;
+  const cutoff = new Date(last.date).getTime() - days * 24 * 60 * 60 * 1000;
+  return { ...history, bars: history.bars.filter((b) => new Date(b.date).getTime() >= cutoff) };
+}
 
 function buildSmaSeries(bars: SymbolHistory["bars"], period: number, visibleCount = CHART_BARS): number[] {
   const visibleBars = bars.slice(-visibleCount);
@@ -459,10 +471,11 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
   const etf = getEtf(symbol);
   const name = getTickerName(symbol) || etf?.name || "";
   try {
-    const cached = getCached("breakout");
-    let raw = cached?.find((h) => h.symbol === symbol);
-    if (!raw || raw.bars.length === 0) {
+    const cacheKey = `detail:${symbol}`;
+    let raw = getCached(cacheKey)?.[0];
+    if (!raw) {
       raw = await provider.getDailyHistory(symbol, DETAIL_LOOKBACK_DAYS);
+      if (raw.bars.length > 0) setCache(cacheKey, [raw]);
     }
     if (raw.bars.length === 0) {
       res.status(404).json({ error: `No data for ${symbol}` });
@@ -471,8 +484,11 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
     const currency = getTickerCurrency(symbol) ?? etf?.currency ?? null;
     const history = toMajorUnits(raw, currency);
     const visibleCount = Math.min(history.bars.length, DETAIL_CHART_BARS);
+    // The screen sees the same window as the scan, so the detail page agrees with it.
+    const scanned = getCached("breakout")?.find((h) => h.symbol === symbol && h.bars.length > 0);
+    const screenHistory = scanned ? toMajorUnits(scanned, currency) : trimToCalendarDays(history, LOOKBACK_CALENDAR_DAYS);
     const contextFor = await loadBreakoutContext();
-    const screenResult = runBreakoutScreen(history, DEFAULT_BREAKOUT_CONFIG, name, contextFor(symbol));
+    const screenResult = runBreakoutScreen(screenHistory, DEFAULT_BREAKOUT_CONFIG, name, contextFor(symbol));
     const [fundamentals, news] = await Promise.all([
       getStockFundamentals(symbol).catch((err) => {
         console.error(`Fundamentals fetch failed for ${symbol}:`, err.message);
@@ -490,6 +506,7 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
       bars: history.bars.slice(-visibleCount),
       sma50Series: buildSmaSeries(history.bars, 50, visibleCount),
       sma150Series: buildSmaSeries(history.bars, 150, visibleCount),
+      sma200Series: buildSmaSeries(history.bars, 200, visibleCount),
       details: screenResult?.details ?? null,
       financials: fundamentals.financials,
       epsHistory: fundamentals.epsHistory,

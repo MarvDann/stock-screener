@@ -52,3 +52,22 @@ export const CHART_THEMES: Record<Theme, ChartTheme> = {
     volumeDown: "rgba(255, 77, 94, 0.45)",
   },
 };
+
+/** Moving-average line colours, the same in every theme: 50-day yellow, 150-day violet, 200-day red. */
+export const SMA_COLORS = {
+  sma50: "#facc15",
+  sma150: "#a78bfa",
+  sma200: "#ef4444",
+} as const;
+
+/** Moving averages sit slightly behind the candles so price stays the focus. */
+export const SMA_LINE_OPACITY = 0.75;
+
+/** A "#rgb" or "#rrggbb" colour as rgba() at the given opacity; anything else is returned unchanged. */
+export function withAlpha(hex: string, alpha: number): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const digits = m[1].length === 3 ? [...m[1]].map((d) => d + d).join("") : m[1];
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(digits.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
