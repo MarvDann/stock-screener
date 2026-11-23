@@ -99,6 +99,9 @@ async function logout() {
 }
 .content {
   flex: 1;
+  /* Without this the column can't shrink below its widest child, so charts
+     (which size to their container) never get narrower when the window does. */
+  min-width: 0;
   padding: 32px;
   background: var(--bg);
 }
@@ -122,5 +125,41 @@ async function logout() {
 .logout-btn:hover {
   color: var(--text-primary);
   border-color: var(--text-muted);
+}
+/* On narrow screens the sidebar becomes a scrolling top bar, so the page
+   content (and its charts) gets the full width. */
+@media (max-width: 760px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    padding: 10px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    z-index: 10;
+  }
+  .brand {
+    margin: 0 8px 0 0;
+    flex-shrink: 0;
+  }
+  .nav-link,
+  .logout-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .sidebar-bottom {
+    margin-top: 0;
+    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
+  }
+  .content {
+    padding: 20px 16px;
+  }
 }
 </style>
