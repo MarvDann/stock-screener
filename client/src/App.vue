@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from "vue-router";
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { Menu, X } from "lucide-vue-next";
 import { authClient, clearSessionCache } from "./auth";
 import { useTheme } from "./composables/useTheme";
 import ThemeSwitcher from "./components/ThemeSwitcher.vue";
@@ -18,6 +19,10 @@ const showSidebar = computed(() => !route.meta.public);
 
 onMounted(initTheme);
 
+// On phones the nav collapses behind a menu button; picking a page closes it.
+const menuOpen = ref(false);
+watch(() => route.fullPath, () => (menuOpen.value = false));
+
 async function logout() {
   await authClient.signOut().catch(() => undefined);
   clearSessionCache();
@@ -30,23 +35,39 @@ async function logout() {
 
 <template>
   <div v-if="showSidebar" class="app-shell">
-    <nav class="sidebar">
-      <RouterLink to="/" class="brand" aria-label="StockWatch home"><BrandLogo /></RouterLink>
-      <RouterLink to="/" class="nav-link">Home</RouterLink>
-      <RouterLink to="/stock-charts" class="nav-link">Stock Charts</RouterLink>
-      <RouterLink to="/etfs" class="nav-link">ETFs</RouterLink>
-      <RouterLink to="/watchlists" class="nav-link">Watchlists</RouterLink>
-      <RouterLink to="/earnings" class="nav-link">Earnings</RouterLink>
-      <RouterLink to="/volatility" class="nav-link">Volatility</RouterLink>
-      <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
-      <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
-      <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>
-      <RouterLink to="/industry-groups" class="nav-link">Industry Groups</RouterLink>
-      <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
-      <div class="sidebar-bottom">
-        <RouterLink to="/account" class="nav-link">Account</RouterLink>
-        <ThemeSwitcher />
-        <button class="logout-btn" @click="logout">Log out</button>
+    <nav class="sidebar" :class="{ open: menuOpen }">
+      <div class="sidebar-top">
+        <RouterLink to="/" class="brand" aria-label="StockWatch home"><BrandLogo /></RouterLink>
+        <button
+          type="button"
+          class="menu-toggle"
+          :aria-expanded="menuOpen"
+          aria-controls="nav-menu"
+          :aria-label="menuOpen ? 'Close menu' : 'Open menu'"
+          @click="menuOpen = !menuOpen"
+        >
+          <component :is="menuOpen ? X : Menu" :size="20" />
+        </button>
+      </div>
+      <div id="nav-menu" class="nav-menu">
+        <div class="nav-links">
+          <RouterLink to="/" class="nav-link">Home</RouterLink>
+          <RouterLink to="/stock-charts" class="nav-link">Stock Charts</RouterLink>
+          <RouterLink to="/etfs" class="nav-link">ETFs</RouterLink>
+          <RouterLink to="/watchlists" class="nav-link">Watchlists</RouterLink>
+          <RouterLink to="/earnings" class="nav-link">Earnings</RouterLink>
+          <RouterLink to="/volatility" class="nav-link">Volatility</RouterLink>
+          <RouterLink to="/breakout" class="nav-link">Breakout</RouterLink>
+          <RouterLink to="/sector-rotation" class="nav-link">Sector Rotation</RouterLink>
+          <RouterLink to="/sector-drilldown" class="nav-link">Sector Drilldown</RouterLink>
+          <RouterLink to="/industry-groups" class="nav-link">Industry Groups</RouterLink>
+          <RouterLink to="/tickers" class="nav-link">Tickers</RouterLink>
+        </div>
+        <div class="sidebar-bottom">
+          <RouterLink to="/account" class="nav-link">Account</RouterLink>
+          <ThemeSwitcher />
+          <button class="logout-btn" @click="logout">Log out</button>
+        </div>
       </div>
     </nav>
     <main class="content">
@@ -75,6 +96,23 @@ async function logout() {
   top: 0;
   height: 100vh;
   overflow-y: auto;
+}
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.menu-toggle {
+  display: none;
+}
+.nav-menu,
+.nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-menu {
+  flex: 1;
 }
 .brand {
   display: block;
@@ -126,8 +164,8 @@ async function logout() {
   color: var(--text-primary);
   border-color: var(--text-muted);
 }
-/* On narrow screens the sidebar becomes a scrolling top bar, so the page
-   content (and its charts) gets the full width. */
+/* On narrow screens the sidebar becomes a top bar with a menu button that
+   drops the links down over the page, so the content gets the full width. */
 @media (max-width: 760px) {
   .app-shell {
     flex-direction: column;
@@ -135,28 +173,67 @@ async function logout() {
   .sidebar {
     width: auto;
     height: auto;
-    flex-direction: row;
-    align-items: center;
-    overflow-x: auto;
-    padding: 10px 16px;
+    padding: 0;
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
-    z-index: 10;
+    overflow: visible;
+    z-index: 20;
+  }
+  .sidebar-top {
+    padding: 10px 16px;
+    min-height: 56px;
   }
   .brand {
-    margin: 0 8px 0 0;
-    flex-shrink: 0;
+    margin: 0;
   }
-  .nav-link,
-  .logout-btn {
-    white-space: nowrap;
-    flex-shrink: 0;
+  .menu-toggle {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .nav-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: calc(100dvh - 57px);
+    overflow-y: auto;
+    padding: 12px 16px 16px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+  }
+  .sidebar.open .nav-menu {
+    display: flex;
+  }
+  .nav-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .nav-link {
+    padding: 12px;
+    font-size: 15px;
   }
   .sidebar-bottom {
-    margin-top: 0;
-    margin-left: auto;
-    flex-direction: row;
-    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+  .sidebar-bottom .nav-link {
+    grid-column: 1 / -1;
+  }
+  .logout-btn {
+    font-size: 14px;
   }
   .content {
     padding: 20px 16px;

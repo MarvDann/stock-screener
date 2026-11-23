@@ -51,50 +51,52 @@ onMounted(load);
     <template v-else-if="data">
       <WarningsBanner :warnings="data.warnings" />
 
-      <table class="ranking">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Sector</th>
-            <th>Mansfield RS</th>
-            <th>Money flow</th>
-            <th>Capital flow</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in data.results" :key="r.sectorSymbol">
-            <td>{{ r.rank }}</td>
-            <td>
-              <RouterLink :to="{ name: 'stock-detail', params: { symbol: r.sectorSymbol } }" class="sector-link">
-                <span
-                  class="badge"
-                  :style="{
-                    color: sectorMeta(drilldownSector(r.sectorSymbol) ?? '').color,
-                    background: `color-mix(in srgb, ${sectorMeta(drilldownSector(r.sectorSymbol) ?? '').color} 16%, transparent)`,
-                  }"
+      <div class="table-scroll">
+        <table class="ranking">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Sector</th>
+              <th>Mansfield RS</th>
+              <th>Money flow</th>
+              <th>Capital flow</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in data.results" :key="r.sectorSymbol">
+              <td>{{ r.rank }}</td>
+              <td>
+                <RouterLink :to="{ name: 'stock-detail', params: { symbol: r.sectorSymbol } }" class="sector-link">
+                  <span
+                    class="badge"
+                    :style="{
+                      color: sectorMeta(drilldownSector(r.sectorSymbol) ?? '').color,
+                      background: `color-mix(in srgb, ${sectorMeta(drilldownSector(r.sectorSymbol) ?? '').color} 16%, transparent)`,
+                    }"
+                  >
+                    <component :is="sectorMeta(drilldownSector(r.sectorSymbol) ?? '').icon" :size="15" />
+                  </span>
+                  <span class="sector-name">{{ r.sectorName }}</span>
+                  <span class="sector-etf">{{ r.sectorSymbol }}</span>
+                </RouterLink>
+              </td>
+              <td :class="rsClass(r.mansfieldRs)">{{ isNaN(r.mansfieldRs) ? "—" : r.mansfieldRs.toFixed(2) }}</td>
+              <td class="flow" :class="r.moneyFlowTrend">{{ r.moneyFlowTrend }}</td>
+              <td class="flow" :class="r.capitalFlow">{{ r.capitalFlow }}</td>
+              <td class="actions">
+                <RouterLink
+                  v-if="drilldownSector(r.sectorSymbol)"
+                  :to="{ name: 'sector-drilldown', query: { sector: drilldownSector(r.sectorSymbol) } }"
+                  class="stocks-link"
                 >
-                  <component :is="sectorMeta(drilldownSector(r.sectorSymbol) ?? '').icon" :size="15" />
-                </span>
-                <span class="sector-name">{{ r.sectorName }}</span>
-                <span class="sector-etf">{{ r.sectorSymbol }}</span>
-              </RouterLink>
-            </td>
-            <td :class="rsClass(r.mansfieldRs)">{{ isNaN(r.mansfieldRs) ? "—" : r.mansfieldRs.toFixed(2) }}</td>
-            <td class="flow" :class="r.moneyFlowTrend">{{ r.moneyFlowTrend }}</td>
-            <td class="flow" :class="r.capitalFlow">{{ r.capitalFlow }}</td>
-            <td class="actions">
-              <RouterLink
-                v-if="drilldownSector(r.sectorSymbol)"
-                :to="{ name: 'sector-drilldown', query: { sector: drilldownSector(r.sectorSymbol) } }"
-                class="stocks-link"
-              >
-                Stocks →
-              </RouterLink>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                  Stocks →
+                </RouterLink>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </template>
   </div>
 </template>

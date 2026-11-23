@@ -132,62 +132,64 @@ onMounted(load);
       <p v-if="rowError" class="inline-error row-error">{{ rowError }}</p>
 
       <p v-if="loading" class="muted">Loading…</p>
-      <table v-else class="tickers">
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Sector</th>
-            <th>Sub-sector</th>
-            <th title="Your own industry group — ranked instead of the sub-sector on Industry Groups">Group</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="t in filtered" :key="t.symbol">
-            <td class="symbol">
-              <RouterLink :to="{ name: 'stock-detail', params: { symbol: t.symbol } }">{{ t.symbol }}</RouterLink>
-            </td>
-            <td>
-              <form
-                v-if="editingSymbol === t.symbol"
-                :id="`edit-${t.symbol}`"
-                class="edit-form"
-                @submit.prevent="saveEdit(t)"
-              >
-                <input v-model="editName" class="edit-input" aria-label="Edit name" @keydown.esc="cancelEdit" />
-                <button type="submit" class="btn-primary">Save</button>
-                <button type="button" class="btn-ghost" @click="cancelEdit">Cancel</button>
-              </form>
-              <span v-else>{{ t.name || "—" }}</span>
-            </td>
-            <td class="category" :class="{ muted: t.sector === null }">{{ categoryLabel(t.sector) }}</td>
-            <td class="category" :class="{ muted: t.industry === null }">{{ categoryLabel(t.industry) }}</td>
-            <td>
-              <input
-                v-if="editingSymbol === t.symbol"
-                v-model="editGroup"
-                :form="`edit-${t.symbol}`"
-                class="group-input"
-                list="custom-groups"
-                placeholder="None"
-                aria-label="Edit group"
-                @keydown.esc="cancelEdit"
-              />
-              <span v-else-if="t.customGroup" class="group-chip">{{ t.customGroup }}</span>
-            </td>
-            <td class="actions">
-              <template v-if="editingSymbol !== t.symbol">
-                <button class="btn-ghost edit-btn" @click="startEdit(t)">Edit</button>
-                <button class="btn-ghost remove-btn" @click="remove(t)">Remove</button>
-              </template>
-            </td>
-          </tr>
-          <tr v-if="filtered.length === 0">
-            <td colspan="6" class="muted">No tickers match.</td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-else class="table-scroll">
+        <table class="tickers">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Name</th>
+              <th>Sector</th>
+              <th>Sub-sector</th>
+              <th title="Your own industry group — ranked instead of the sub-sector on Industry Groups">Group</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in filtered" :key="t.symbol">
+              <td class="symbol">
+                <RouterLink :to="{ name: 'stock-detail', params: { symbol: t.symbol } }">{{ t.symbol }}</RouterLink>
+              </td>
+              <td>
+                <form
+                  v-if="editingSymbol === t.symbol"
+                  :id="`edit-${t.symbol}`"
+                  class="edit-form"
+                  @submit.prevent="saveEdit(t)"
+                >
+                  <input v-model="editName" class="edit-input" aria-label="Edit name" @keydown.esc="cancelEdit" />
+                  <button type="submit" class="btn-primary">Save</button>
+                  <button type="button" class="btn-ghost" @click="cancelEdit">Cancel</button>
+                </form>
+                <span v-else>{{ t.name || "—" }}</span>
+              </td>
+              <td class="category" :class="{ muted: t.sector === null }">{{ categoryLabel(t.sector) }}</td>
+              <td class="category" :class="{ muted: t.industry === null }">{{ categoryLabel(t.industry) }}</td>
+              <td>
+                <input
+                  v-if="editingSymbol === t.symbol"
+                  v-model="editGroup"
+                  :form="`edit-${t.symbol}`"
+                  class="group-input"
+                  list="custom-groups"
+                  placeholder="None"
+                  aria-label="Edit group"
+                  @keydown.esc="cancelEdit"
+                />
+                <span v-else-if="t.customGroup" class="group-chip">{{ t.customGroup }}</span>
+              </td>
+              <td class="actions">
+                <template v-if="editingSymbol !== t.symbol">
+                  <button class="btn-ghost edit-btn" @click="startEdit(t)">Edit</button>
+                  <button class="btn-ghost remove-btn" @click="remove(t)">Remove</button>
+                </template>
+              </td>
+            </tr>
+            <tr v-if="filtered.length === 0">
+              <td colspan="6" class="muted">No tickers match.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <datalist id="custom-groups">
         <option v-for="g in groupNames" :key="g" :value="g" />
       </datalist>
@@ -324,5 +326,17 @@ input:focus {
 }
 .actions .btn-ghost + .btn-ghost {
   margin-left: 6px;
+}
+@media (max-width: 760px) {
+  .add-form {
+    flex-wrap: wrap;
+  }
+  .symbol-input,
+  .name-input,
+  .filter-input {
+    flex: 1 1 100%;
+    width: auto;
+    max-width: none;
+  }
 }
 </style>

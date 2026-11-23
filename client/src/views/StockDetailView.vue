@@ -50,6 +50,9 @@ const timeframe = computed<ChartTimeframe>({
 });
 
 /** Weekly and monthly charts, fetched the first time each is picked. */
+// A 500px chart fills a whole phone screen, so phones get a shorter one.
+const chartHeight = window.matchMedia?.("(max-width: 760px)").matches ? 340 : 500;
+
 const longTermCharts = ref<Partial<Record<StockChart["timeframe"], StockChart>>>({});
 const chartLoading = ref(false);
 const chartError = ref<string | null>(null);
@@ -199,7 +202,7 @@ onMounted(() => {
           :bars="chart.bars"
           :sma50-series="chart.fast"
           :sma150-series="chart.slow"
-          :height="500"
+          :height="chartHeight"
         />
         <div v-else-if="chartError" class="chart-status error-state">
           <p>Failed to load the {{ timeframe }} chart.</p>
@@ -420,7 +423,8 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
-  height: 532px;
+  /* Holds the space while loading; grows when the price readout above the chart wraps. */
+  min-height: 532px;
 }
 .legend {
   display: flex;
@@ -595,6 +599,38 @@ onMounted(() => {
 @media (max-width: 760px) {
   .overview {
     grid-template-columns: 1fr;
+  }
+  .chart-container {
+    min-height: 372px;
+    padding: 12px;
+  }
+  /* Back and Watchlists share the top row; the name and price go underneath. */
+  .detail-header {
+    flex-wrap: wrap;
+    gap: 0 12px;
+  }
+  .detail-header > :last-child {
+    order: 1;
+    margin-left: auto;
+  }
+  /* Forces the line break after the buttons. */
+  .detail-header::after {
+    content: "";
+    order: 2;
+    flex-basis: 100%;
+    height: 14px;
+  }
+  .title-group {
+    order: 3;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .title-group h2 {
+    font-size: 22px;
+  }
+  .price {
+    order: 4;
   }
 }
 </style>

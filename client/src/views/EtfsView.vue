@@ -200,54 +200,56 @@ onMounted(load);
         <p v-if="addError" class="inline-error">{{ addError }}</p>
         <p v-if="rowError" class="inline-error">{{ rowError }}</p>
 
-        <table class="etf-table">
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Name</th>
-              <th>Category</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="e in results" :key="e.symbol">
-              <td class="symbol">
-                <RouterLink :to="{ name: 'stock-detail', params: { symbol: e.symbol } }">{{ e.symbol }}</RouterLink>
-              </td>
-              <td>
-                <form v-if="renamingSymbol === e.symbol" class="rename-form" @submit.prevent="saveRename(e)">
-                  <input v-model="renameValue" class="rename-input" aria-label="Edit name" @keydown.esc="renamingSymbol = null" />
-                  <button type="submit" class="btn-primary">Save</button>
-                  <button type="button" class="btn-ghost" @click="renamingSymbol = null">Cancel</button>
-                </form>
-                <span v-else>{{ e.name }}</span>
-              </td>
-              <td>
-                <select
-                  v-if="isEditable(e)"
-                  :value="e.category"
-                  :aria-label="`Category for ${e.symbol}`"
-                  @change="move(e, ($event.target as HTMLSelectElement).value)"
-                >
-                  <option v-for="c in editableCategories" :key="c" :value="c">{{ c }}</option>
-                </select>
-                <span v-else class="muted">{{ e.category }}</span>
-              </td>
-              <td class="actions">
-                <template v-if="!isEditable(e)">
-                  <span class="muted" title="These are the funds the Sector Rotation page ranks">Fixed</span>
-                </template>
-                <template v-else-if="renamingSymbol !== e.symbol">
-                  <button type="button" class="btn-ghost" @click="startRename(e)">Rename</button>
-                  <button type="button" class="btn-ghost remove-btn" @click="remove(e)">Remove</button>
-                </template>
-              </td>
-            </tr>
-            <tr v-if="results.length === 0">
-              <td colspan="4" class="muted">No ETFs match.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="etf-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="e in results" :key="e.symbol">
+                <td class="symbol">
+                  <RouterLink :to="{ name: 'stock-detail', params: { symbol: e.symbol } }">{{ e.symbol }}</RouterLink>
+                </td>
+                <td>
+                  <form v-if="renamingSymbol === e.symbol" class="rename-form" @submit.prevent="saveRename(e)">
+                    <input v-model="renameValue" class="rename-input" aria-label="Edit name" @keydown.esc="renamingSymbol = null" />
+                    <button type="submit" class="btn-primary">Save</button>
+                    <button type="button" class="btn-ghost" @click="renamingSymbol = null">Cancel</button>
+                  </form>
+                  <span v-else>{{ e.name }}</span>
+                </td>
+                <td>
+                  <select
+                    v-if="isEditable(e)"
+                    :value="e.category"
+                    :aria-label="`Category for ${e.symbol}`"
+                    @change="move(e, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option v-for="c in editableCategories" :key="c" :value="c">{{ c }}</option>
+                  </select>
+                  <span v-else class="muted">{{ e.category }}</span>
+                </td>
+                <td class="actions">
+                  <template v-if="!isEditable(e)">
+                    <span class="muted" title="These are the funds the Sector Rotation page ranks">Fixed</span>
+                  </template>
+                  <template v-else-if="renamingSymbol !== e.symbol">
+                    <button type="button" class="btn-ghost" @click="startRename(e)">Rename</button>
+                    <button type="button" class="btn-ghost remove-btn" @click="remove(e)">Remove</button>
+                  </template>
+                </td>
+              </tr>
+              <tr v-if="results.length === 0">
+                <td colspan="4" class="muted">No ETFs match.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </template>
 
       <template v-else>

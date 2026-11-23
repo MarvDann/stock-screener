@@ -312,6 +312,11 @@ onMounted(() => load());
     grid-template-columns: repeat(2, 1fr);
   }
 }
+@media (max-width: 560px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
 .stat-tile {
   display: flex;
   flex-direction: column;

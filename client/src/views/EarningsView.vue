@@ -271,4 +271,21 @@ onMounted(() => load());
   padding: 2px 8px;
   white-space: nowrap;
 }
+@media (max-width: 760px) {
+  .sector {
+    display: none;
+  }
+  .earnings td {
+    padding: 10px 8px;
+  }
+  .time {
+    width: 64px;
+  }
+  .session-cell {
+    width: 104px;
+  }
+  .status {
+    width: 84px;
+  }
+}
 </style>

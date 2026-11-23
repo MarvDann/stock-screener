@@ -246,3 +246,42 @@ body {
 .form-footer a:hover {
   text-decoration: underline;
 }
+
+/* Wide tables scroll sideways inside this wrapper instead of pushing the page wider. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iPhones zoom the page when a field under 16px gets focus, and don't zoom back out. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Phones ── */
+@media (max-width: 760px) {
+  .page-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .page-header h2 {
+    margin: 0;
+    font-size: 22px;
+  }
+  /* Search boxes, filters and buttons drop below the title and share the full width. */
+  .page-header .header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .page-header .header-actions > input,
+  .page-header .header-actions > select {
+    flex: 1 1 100%;
+    width: auto;
+    min-width: 0;
+  }
+}
