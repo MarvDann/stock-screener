@@ -103,6 +103,19 @@ export interface NewsItem {
   publishedAt: string;
 }
 
+/** Stan Weinstein's stage, read from the weekly chart against the 30-week SMA. */
+export interface WeinsteinStage {
+  stage: 1 | 2 | 3 | 4;
+  label: "Basing" | "Advancing" | "Topping" | "Declining";
+  /** Consecutive weeks in this stage (at least this many: history is ~2 years). */
+  weeks: number;
+  ma30: number;
+  /** % change in the 30-week SMA over the last 5 weeks. */
+  maSlopePct: number;
+  /** % the latest weekly close sits above (or below) the 30-week SMA. */
+  pctFromMa: number;
+}
+
 export interface StockDetail {
   symbol: string;
   name: string;
@@ -113,6 +126,8 @@ export interface StockDetail {
   sma150Series: number[];
   sma200Series: number[];
   details: BreakoutDetails | null;
+  /** Null without ~35 weeks of history. */
+  stage: WeinsteinStage | null;
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];

@@ -38,6 +38,7 @@ function makeStockDetail(overrides: Partial<StockDetail> = {}): StockDetail {
       rsRating: 91,
       rsLineNewHigh: true,
     },
+    stage: { stage: 2, label: "Advancing", weeks: 14, ma30: 170, maSlopePct: 3.2, pctFromMa: 12.06 },
     financials: {
       grossMargin: 0.4235,
       operatingMargin: 0.301,
@@ -185,6 +186,22 @@ describe("StockDetailView financial cards", () => {
     expect(wrapper.findComponent(EpsChart).exists()).toBe(true);
     expect(statValue(wrapper, "Close")).toBeUndefined();
     expect(statValue(wrapper, "Volume Ratio")).toBeUndefined();
+  });
+
+  it("shows the Weinstein stage beside the ticker, explained in its tooltip", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail());
+    const wrapper = await mountView();
+    const badge = wrapper.find('[data-testid="stage-badge"]');
+    expect(badge.text()).toBe("Stage 2 · Advancing");
+    expect(badge.classes()).toContain("stage-2");
+    expect(badge.attributes("title")).toContain("In this stage for 14 weeks");
+    expect(badge.attributes("title")).toContain("12.1% above the 30-week average, which is up 3.2% over 5 weeks");
+  });
+
+  it("has no stage badge without enough history", async () => {
+    fetchStockDetail.mockResolvedValue(makeStockDetail({ stage: null }));
+    const wrapper = await mountView();
+    expect(wrapper.find('[data-testid="stage-badge"]').exists()).toBe(false);
   });
 
   it("has no stats grid when there's neither screen data nor financials", async () => {

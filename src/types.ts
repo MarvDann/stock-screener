@@ -1,6 +1,7 @@
 import type { Breadth, GroupStats, Mover } from "./screens/marketOverview";
 import type { VolatilitySummary } from "./screens/volatility";
 import type { IndustryGroup, IndustryGroupMember } from "./screens/industryGroups";
+import type { WeinsteinStage } from "./indicators/weinsteinStage";
 
 /**
  * A single day's OHLCV bar.
@@ -174,6 +175,8 @@ export interface StockDetailResponse {
   sma150Series: number[];
   sma200Series: number[];
   details: BreakoutScreenResult["details"] | null;
+  /** Stan Weinstein stage from the weekly chart and 30-week SMA; null without ~35 weeks of history. */
+  stage: WeinsteinStage | null;
   financials: StockFinancials | null;
   /** EPS per quarter, oldest first, for the trailing 4 quarters */
   epsHistory: number[];

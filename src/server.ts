@@ -9,6 +9,7 @@ import { BENCHMARK_SYMBOL } from "./universe";
 import { sma } from "./indicators/movingAverage";
 import { resampleBars, Timeframe } from "./indicators/resample";
 import { rsRatings } from "./indicators/relativeStrength";
+import { weinsteinStage } from "./indicators/weinsteinStage";
 import {
   BreakoutScanResponse,
   EarningsResponse,
@@ -510,6 +511,7 @@ app.get("/api/stock/:symbol", requireAuth, async (req, res) => {
       sma150Series: buildSmaSeries(history.bars, 150, visibleCount),
       sma200Series: buildSmaSeries(history.bars, 200, visibleCount),
       details: screenResult?.details ?? null,
+      stage: weinsteinStage(history.bars),
       financials: fundamentals.financials,
       epsHistory: fundamentals.epsHistory,
       profile: fundamentals.profile,

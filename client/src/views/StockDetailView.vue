@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { fetchStockChart, fetchStockDetail } from "../api";
-import type { ChartTimeframe, StockChart, StockDetail } from "../types";
+import type { ChartTimeframe, StockChart, StockDetail, WeinsteinStage } from "../types";
 import { useQueryParam } from "../composables/useQueryParam";
 import PriceChart, { type PriceStyle } from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
@@ -169,6 +169,23 @@ const chart = computed(() => {
 /** Latest close — from the screen when the stock qualifies, otherwise the last bar. */
 const lastClose = computed(() => data.value?.details?.close ?? data.value?.bars.at(-1)?.close ?? null);
 
+/** One-line plain explanation of each Weinstein stage, for the badge's tooltip. */
+const STAGE_MEANINGS: Record<WeinsteinStage["stage"], string> = {
+  1: "Basing: the 30-week average has flattened after a decline and price is moving sideways around it.",
+  2: "Advancing: price is above a rising 30-week average.",
+  3: "Topping: the 30-week average has flattened after an advance and price is moving sideways around it.",
+  4: "Declining: price is below a falling 30-week average.",
+};
+
+const stageTooltip = computed(() => {
+  const s = data.value?.stage;
+  if (!s) return "";
+  const weeks = `${s.weeks} week${s.weeks === 1 ? "" : "s"}`;
+  const side = `${Math.abs(s.pctFromMa).toFixed(1)}% ${s.pctFromMa >= 0 ? "above" : "below"}`;
+  const slope = `${s.maSlopePct >= 0 ? "up" : "down"} ${Math.abs(s.maSlopePct).toFixed(1)}%`;
+  return `Weinstein Stage ${s.stage} — ${STAGE_MEANINGS[s.stage]}\nIn this stage for ${weeks}. Price is ${side} the 30-week average, which is ${slope} over 5 weeks.`;
+});
+
 /** Business summaries longer than this start collapsed. */
 const SUMMARY_PREVIEW_CHARS = 320;
 const summaryExpanded = ref(false);
@@ -235,6 +252,15 @@ onMounted(() => {
       <div class="title-group">
         <h2>{{ data?.name || symbol }}</h2>
         <span class="ticker-badge">{{ symbol }}</span>
+        <span
+          v-if="data?.stage"
+          class="stage-badge"
+          :class="`stage-${data.stage.stage}`"
+          :title="stageTooltip"
+          data-testid="stage-badge"
+        >
+          Stage {{ data.stage.stage }} · {{ data.stage.label }}
+        </span>
       </div>
       <span v-if="data && lastClose != null" class="price">{{ formatPrice(lastClose, data.currency) }}</span>
       <WatchlistMenu :symbol="symbol" />
@@ -469,6 +495,27 @@ onMounted(() => {
   border-radius: 4px;
   padding: 2px 6px;
   letter-spacing: 0.04em;
+}
+.stage-badge {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--surface);
+  cursor: help;
+}
+.stage-badge.stage-2 {
+  color: var(--positive);
+  background: var(--positive-soft);
+  border-color: transparent;
+}
+.stage-badge.stage-4 {
+  color: var(--negative);
+  background: var(--negative-soft);
+  border-color: transparent;
 }
 .price {
   font-size: 20px;
