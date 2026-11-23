@@ -66,14 +66,16 @@ const DETAIL_CHART_BARS = 252;
 const DETAIL_LOOKBACK_DAYS = 700;
 /**
  * The detail page's longer-term charts: weekly shows ~3 years, monthly ~10,
- * each fetched with enough extra history to warm up the 30-bar SMA. Both use
- * 10 and 30-bar SMAs; on the weekly those are the daily's 50 and 150-day.
+ * each fetched with enough extra history to warm up its longest SMA. Both use
+ * 10, 30 and 40-bar SMAs; on the weekly those are the daily's 50, 150 and 200-day.
  */
 const LONG_TERM_CHARTS: Record<Exclude<Timeframe, "daily">, { lookbackDays: number; visibleBars: number }> = {
   weekly: { lookbackDays: 5 * 365, visibleBars: 156 },
   monthly: { lookbackDays: 15 * 365, visibleBars: 120 },
 };
 const LONG_TERM_SMA_PERIODS: [number, number] = [10, 30];
+/** Both charts' third, longer line: 40 bars (on the weekly, the daily's 200-day). */
+const LONG_TERM_LONG_SMA_PERIOD = 40;
 const MAX_STOCKS_PER_REQUEST = 24;
 
 const provider: MarketDataProvider = new YahooMarketDataProvider();
@@ -549,6 +551,7 @@ app.get("/api/stock/:symbol/chart", requireAuth, async (req, res) => {
       smaPeriods: LONG_TERM_SMA_PERIODS,
       smaFastSeries: buildSmaSeries(bars, fastPeriod, visibleCount),
       smaSlowSeries: buildSmaSeries(bars, slowPeriod, visibleCount),
+      smaLong: { period: LONG_TERM_LONG_SMA_PERIOD, series: buildSmaSeries(bars, LONG_TERM_LONG_SMA_PERIOD, visibleCount) },
     };
     res.json(response);
   } catch (err) {

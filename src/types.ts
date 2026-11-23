@@ -191,6 +191,8 @@ export interface StockChartResponse {
   smaPeriods: [number, number];
   smaFastSeries: number[];
   smaSlowSeries: number[];
+  /** A third, longer SMA (40 bars); null on charts without one. */
+  smaLong: { period: number; series: number[] } | null;
 }
 
 /** Everything the home page shows about the tracked universe, from one scan. */

@@ -132,6 +132,8 @@ export interface StockChart {
   smaPeriods: [number, number];
   smaFastSeries: number[];
   smaSlowSeries: number[];
+  /** A third, longer SMA (40 bars); null on charts without one. */
+  smaLong: { period: number; series: number[] } | null;
 }
 
 export interface SectorRotationResult {

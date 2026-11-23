@@ -39,7 +39,11 @@ export const CHART_THEMES: Record<Theme, ChartTheme> = {
     grid: "rgba(91, 95, 114, 0.18)",
     reference: "rgba(92, 96, 112, 0.45)",
     series: LIGHT_SERIES,
-    ...STANDARD_CANDLES,
+    // A step darker than the dark theme's candles, which glare on a white background.
+    up: "#0e9a50",
+    down: "#d42f3c",
+    volumeUp: "rgba(14, 154, 80, 0.4)",
+    volumeDown: "rgba(212, 47, 60, 0.4)",
   },
   matrix: {
     text: "#3fbf63",

@@ -13,13 +13,17 @@ export interface MovingAverageLine {
   visible?: boolean;
 }
 
-const props = withDefaults(defineProps<{ bars: DailyBar[]; movingAverages: MovingAverageLine[]; height?: number }>(), {
-  height: 200,
-});
+/** Candlesticks, or HLC bars: a high-low stick with a tick for the close. */
+export type PriceStyle = "candles" | "bars";
+
+const props = withDefaults(
+  defineProps<{ bars: DailyBar[]; movingAverages: MovingAverageLine[]; height?: number; priceStyle?: PriceStyle }>(),
+  { height: 200, priceStyle: "candles" }
+);
 const container = ref<HTMLDivElement | null>(null);
 const { theme } = useTheme();
 let chart: IChartApi | null = null;
-let candleSeries: ISeriesApi<"Candlestick"> | null = null;
+let priceSeries: ISeriesApi<"Candlestick"> | ISeriesApi<"Bar"> | null = null;
 let maSeries: ISeriesApi<"Line">[] = [];
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -31,11 +35,36 @@ const legendUp = computed(() => (legendBar.value ? legendBar.value.close >= lege
 
 const formatOhlc = (value: number) => value.toFixed(2);
 
+/** Draws the bars as candles or HLC bars, replacing the current price series if any. */
+function addPriceSeries() {
+  if (!chart) return;
+  if (priceSeries) chart.removeSeries(priceSeries);
+  const colors = CHART_THEMES[theme.value];
+  const common = { upColor: colors.up, downColor: colors.down, priceLineWidth: 1 as const, priceLineStyle: LineStyle.Dashed };
+  priceSeries =
+    props.priceStyle === "bars"
+      ? chart.addBarSeries({ ...common, openVisible: false, thinBars: false })
+      : chart.addCandlestickSeries({ ...common, borderVisible: false, wickUpColor: colors.up, wickDownColor: colors.down });
+  priceSeries.setData(
+    props.bars.map((b) => ({
+      time: b.date.slice(0, 10),
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+    }))
+  );
+  priceSeries.priceScale().applyOptions({
+    scaleMargins: { top: 0.05, bottom: 0.3 },
+  });
+}
+
 function render() {
   if (!container.value) return;
   if (chart) {
     chart.remove();
     chart = null;
+    priceSeries = null;
   }
 
   const colors = CHART_THEMES[theme.value];
@@ -59,7 +88,7 @@ function render() {
     handleScale: { axisPressedMouseMove: true, mouseWheel: false, pinch: true },
   });
 
-  // Series draw in the order they're added, so the moving averages go first to sit behind the candles.
+  // Series draw in the order they're added, so the moving averages go first to sit behind the price.
   maSeries = props.movingAverages.map((ma) => {
     const line = chart!.addLineSeries({
       color: withAlpha(ma.color, SMA_LINE_OPACITY),
@@ -76,27 +105,7 @@ function render() {
     return line;
   });
 
-  candleSeries = chart.addCandlestickSeries({
-    upColor: colors.up,
-    downColor: colors.down,
-    borderVisible: false,
-    wickUpColor: colors.up,
-    wickDownColor: colors.down,
-    priceLineWidth: 1,
-    priceLineStyle: LineStyle.Dashed,
-  });
-  candleSeries.setData(
-    props.bars.map((b) => ({
-      time: b.date.slice(0, 10),
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-    }))
-  );
-  candleSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0.05, bottom: 0.3 },
-  });
+  addPriceSeries();
 
   volumeSeries = chart.addHistogramSeries({
     priceFormat: { type: "volume" },
@@ -130,6 +139,8 @@ function render() {
 }
 
 onMounted(render);
+// Switching style swaps the price series in place, so the chart keeps its zoom and scroll.
+watch(() => props.priceStyle, addPriceSeries);
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   chart?.remove();

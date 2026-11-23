@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { fetchStockChart, fetchStockDetail } from "../api";
 import type { ChartTimeframe, StockChart, StockDetail } from "../types";
 import { useQueryParam } from "../composables/useQueryParam";
-import PriceChart from "../components/PriceChart.vue";
+import PriceChart, { type PriceStyle } from "../components/PriceChart.vue";
 import EpsChart from "../components/EpsChart.vue";
 import WatchlistMenu from "../components/WatchlistMenu.vue";
 import { SMA_COLORS, SMA_LINE_OPACITY, withAlpha } from "../utils/chartTheme";
@@ -50,6 +50,30 @@ const timeframe = computed<ChartTimeframe>({
   set: (value) => (timeframeParam.value = value),
 });
 
+const PRICE_STYLES: { value: PriceStyle; label: string }[] = [
+  { value: "candles", label: "Candles" },
+  { value: "bars", label: "HLC bars" },
+];
+
+/** Candles or HLC bars, remembered across stocks and visits. */
+const PRICE_STYLE_KEY = "chart-price-style";
+const priceStyle = ref<PriceStyle>(
+  (() => {
+    try {
+      const stored = localStorage.getItem(PRICE_STYLE_KEY);
+      if (PRICE_STYLES.some((s) => s.value === stored)) return stored as PriceStyle;
+    } catch {}
+    return "candles";
+  })()
+);
+
+function setPriceStyle(style: PriceStyle) {
+  priceStyle.value = style;
+  try {
+    localStorage.setItem(PRICE_STYLE_KEY, style);
+  } catch {}
+}
+
 /** Weekly and monthly charts, fetched the first time each is picked. */
 // A 500px chart fills a whole phone screen, so phones get a shorter one.
 const chartHeight = window.matchMedia?.("(max-width: 760px)").matches ? 340 : 500;
@@ -79,7 +103,7 @@ function selectTimeframe(tf: ChartTimeframe) {
   loadChart(tf);
 }
 
-/** The moving-average slots, in legend order; weekly and monthly charts have no long line. */
+/** The moving-average slots, in legend order. */
 type MaSlot = "fast" | "slow" | "long";
 const MA_SLOTS: MaSlot[] = ["fast", "slow", "long"];
 const MA_COLORS: Record<MaSlot, string> = { fast: SMA_COLORS.sma50, slow: SMA_COLORS.sma150, long: SMA_COLORS.sma200 };
@@ -128,6 +152,9 @@ const chartSource = computed(() => {
     lines: [
       { slot: "fast" as const, label: `${fast}-${unit} SMA`, values: longTerm.smaFastSeries },
       { slot: "slow" as const, label: `${slow}-${unit} SMA`, values: longTerm.smaSlowSeries },
+      ...(longTerm.smaLong
+        ? [{ slot: "long" as const, label: `${longTerm.smaLong.period}-${unit} SMA`, values: longTerm.smaLong.series }]
+        : []),
     ],
   };
 });
@@ -222,17 +249,40 @@ onMounted(() => {
     </div>
 
     <template v-if="data">
-      <div class="timeframes" role="group" aria-label="Chart timeframe">
-        <button
-          v-for="tf in TIMEFRAMES"
-          :key="tf.value"
-          class="timeframe-btn"
-          :class="{ active: timeframe === tf.value }"
-          :aria-pressed="timeframe === tf.value"
-          @click="selectTimeframe(tf.value)"
-        >
-          {{ tf.label }}
-        </button>
+      <div class="chart-toolbar">
+        <div class="timeframes" role="group" aria-label="Chart timeframe">
+          <button
+            v-for="tf in TIMEFRAMES"
+            :key="tf.value"
+            class="timeframe-btn"
+            :class="{ active: timeframe === tf.value }"
+            :aria-pressed="timeframe === tf.value"
+            @click="selectTimeframe(tf.value)"
+          >
+            {{ tf.label }}
+          </button>
+        </div>
+        <div class="timeframes" role="group" aria-label="Chart style">
+          <button
+            v-for="style in PRICE_STYLES"
+            :key="style.value"
+            class="timeframe-btn icon-btn"
+            :class="{ active: priceStyle === style.value }"
+            :aria-pressed="priceStyle === style.value"
+            :aria-label="style.label"
+            :title="style.label"
+            @click="setPriceStyle(style.value)"
+          >
+            <svg v-if="style.value === 'candles'" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path d="M5 1.5v13M11 3v3M11 10v3" stroke="currentColor" stroke-width="1.25" fill="none" />
+              <rect x="3" y="4.5" width="4" height="7" rx="0.5" fill="currentColor" />
+              <rect x="9.5" y="6" width="3" height="4" rx="0.5" stroke="currentColor" stroke-width="1.25" fill="none" />
+            </svg>
+            <svg v-else viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path d="M5 1.5v13M5 5.5h3M11 3v10M11 10h3" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="chart-container">
@@ -240,6 +290,7 @@ onMounted(() => {
           v-if="chart"
           :bars="chart.bars"
           :moving-averages="chart.lines"
+          :price-style="priceStyle"
           :height="chartHeight"
         />
         <div v-else-if="chartError" class="chart-status error-state">
@@ -431,11 +482,16 @@ onMounted(() => {
   font-size: 14px;
   padding: 40px 0;
 }
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 .timeframes {
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  margin-bottom: 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -451,6 +507,11 @@ onMounted(() => {
   padding: 4px 10px;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
 }
 .timeframe-btn:hover {
   color: var(--text-primary);

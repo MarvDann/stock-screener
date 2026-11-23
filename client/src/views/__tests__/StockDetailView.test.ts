@@ -379,6 +379,7 @@ describe("StockDetailView chart timeframes", () => {
     smaPeriods: [10, 30],
     smaFastSeries: [1.8],
     smaSlowSeries: [1.6],
+    smaLong: { period: 40, series: [1.5] },
   };
 
   beforeEach(async () => {
@@ -417,9 +418,9 @@ describe("StockDetailView chart timeframes", () => {
     expect(router.currentRoute.value.query.chart).toBe("weekly");
     expect(wrapper.findComponent(PriceChart).props()).toMatchObject({
       bars: [weeklyBar],
-      movingAverages: [{ values: [1.8] }, { values: [1.6] }],
+      movingAverages: [{ values: [1.8] }, { values: [1.6] }, { values: [1.5], color: "#ef4444" }],
     });
-    expect(legendText(wrapper)).toEqual(["10-week SMA", "30-week SMA"]);
+    expect(legendText(wrapper)).toEqual(["10-week SMA", "30-week SMA", "40-week SMA"]);
 
     await daily.trigger("click");
     await weekly.trigger("click");
@@ -443,6 +444,22 @@ describe("StockDetailView chart timeframes", () => {
     expect(again.findComponent(PriceChart).props("movingAverages")[0].visible).toBe(true);
   });
 
+  it("switches between candles and HLC bars, remembering the choice", async () => {
+    const wrapper = await mountView();
+    const styleButtons = () => wrapper.findAll('[aria-label="Chart style"] button');
+    expect(styleButtons().map((b) => b.attributes("aria-label"))).toEqual(["Candles", "HLC bars"]);
+    expect(wrapper.findComponent(PriceChart).props("priceStyle")).toBe("candles");
+
+    await styleButtons()[1].trigger("click");
+    expect(wrapper.findComponent(PriceChart).props("priceStyle")).toBe("bars");
+    expect(styleButtons()[1].attributes("aria-pressed")).toBe("true");
+    expect(localStorage.getItem("chart-price-style")).toBe("bars");
+
+    wrapper.unmount();
+    const again = await mountView();
+    expect(again.findComponent(PriceChart).props("priceStyle")).toBe("bars");
+  });
+
   it("opens on the timeframe in the URL", async () => {
     fetchStockChart.mockResolvedValue({ ...weeklyChart, timeframe: "monthly" });
     await router.push("/stock/AAPL?chart=monthly");
@@ -450,7 +467,7 @@ describe("StockDetailView chart timeframes", () => {
     await flushPromises();
     expect(fetchStockChart).toHaveBeenCalledWith("AAPL", "monthly");
     expect(wrapper.find(".timeframe-btn.active").text()).toBe("Monthly");
-    expect(legendText(wrapper)).toEqual(["10-month SMA", "30-month SMA"]);
+    expect(legendText(wrapper)).toEqual(["10-month SMA", "30-month SMA", "40-month SMA"]);
   });
 
   it("shows a retry when a chart fails to load", async () => {

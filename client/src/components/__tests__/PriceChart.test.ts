@@ -13,6 +13,8 @@ const chart = {
   addCandlestickSeries: vi.fn(series),
   addHistogramSeries: vi.fn(series),
   addLineSeries: vi.fn(series),
+  addBarSeries: vi.fn(series),
+  removeSeries: vi.fn(),
   applyOptions: vi.fn(),
   subscribeCrosshairMove: vi.fn(),
   remove: vi.fn(),
@@ -41,6 +43,8 @@ beforeEach(() => {
   chart.addCandlestickSeries.mockClear();
   chart.addHistogramSeries.mockClear();
   chart.addLineSeries.mockClear();
+  chart.addBarSeries.mockClear();
+  chart.removeSeries.mockClear();
   chart.subscribeCrosshairMove.mockClear();
   chart.remove.mockClear();
 });
@@ -187,5 +191,27 @@ describe("PriceChart", () => {
     const [lineOrder] = chart.addLineSeries.mock.invocationCallOrder;
     const [candleOrder] = chart.addCandlestickSeries.mock.invocationCallOrder;
     expect(lineOrder).toBeLessThan(candleOrder);
+  });
+
+  it("draws HLC bars, without the open tick, when asked for bars", () => {
+    mount(PriceChart, { props: { bars: [makeBar()], movingAverages: [], priceStyle: "bars" } });
+
+    expect(chart.addCandlestickSeries).not.toHaveBeenCalled();
+    expect(chart.addBarSeries).toHaveBeenCalledTimes(1);
+    expect(chart.addBarSeries.mock.calls[0]).toMatchObject([{ openVisible: false }]);
+  });
+
+  it("swaps candles for bars in place, keeping the chart", async () => {
+    const wrapper = mount(PriceChart, { props: { bars: [makeBar()], movingAverages: [] } });
+    const candles = chart.addCandlestickSeries.mock.results[0].value;
+
+    await wrapper.setProps({ priceStyle: "bars" });
+
+    expect(createChart).toHaveBeenCalledTimes(1);
+    expect(chart.removeSeries).toHaveBeenCalledWith(candles);
+    expect(chart.addBarSeries).toHaveBeenCalledTimes(1);
+    expect(chart.addBarSeries.mock.results[0].value.setData).toHaveBeenCalledWith([
+      { time: "2024-01-02", open: 10, high: 12, low: 9, close: 11 },
+    ]);
   });
 });
