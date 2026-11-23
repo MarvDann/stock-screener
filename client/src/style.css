@@ -18,7 +18,7 @@
   --warning-bg: #241d0c;
   --warning-border: #4a3a12;
   --warning-text: #f2c94c;
-  --font-ui: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-ui: "Instrument Sans Variable", "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 

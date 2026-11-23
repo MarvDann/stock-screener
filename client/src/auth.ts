@@ -41,18 +41,30 @@ export function clearSessionCache(): void {
   sessionUser = null;
 }
 
-let providers: Promise<SocialProvider[]> | null = null;
+export interface AuthConfig {
+  /** The social sign-in providers the server has credentials for. */
+  providers: SocialProvider[];
+  /** Only invited emails can sign up; everyone else is pointed at the waiting list. */
+  inviteOnly: boolean;
+}
+
+let authConfig: Promise<AuthConfig> | null = null;
+
+/** How sign-in is set up on the server. */
+export function fetchAuthConfig(): Promise<AuthConfig> {
+  authConfig ??= fetch("/api/auth-providers", { credentials: "same-origin" })
+    .then((res) => (res.ok ? res.json() : {}))
+    .then((body: Partial<AuthConfig>) => ({ providers: body.providers ?? [], inviteOnly: body.inviteOnly === true }))
+    .catch(() => {
+      authConfig = null;
+      return { providers: [], inviteOnly: false };
+    });
+  return authConfig;
+}
 
 /** The social sign-in providers the server has credentials for. */
-export function fetchAuthProviders(): Promise<SocialProvider[]> {
-  providers ??= fetch("/api/auth-providers", { credentials: "same-origin" })
-    .then((res) => (res.ok ? res.json() : { providers: [] }))
-    .then((body: { providers?: SocialProvider[] }) => body.providers ?? [])
-    .catch(() => {
-      providers = null;
-      return [];
-    });
-  return providers;
+export async function fetchAuthProviders(): Promise<SocialProvider[]> {
+  return (await fetchAuthConfig()).providers;
 }
 
 /** Better Auth's error for a failed call, as a message to show. */

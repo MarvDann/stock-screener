@@ -46,6 +46,7 @@ import { displayCurrency, toMajorUnits } from "./currency";
 import { createEtfsRouter, getEtf, listEtfs, loadEtfs } from "./etfs";
 import { createWatchlistsRouter } from "./watchlists";
 import { createUsersRouter } from "./users";
+import { createInterestRouter } from "./interest";
 import { computeGroupStats, computeMarketOverview } from "./screens/marketOverview";
 import { VOLATILITY_INDICES, summarizeVolatility } from "./screens/volatility";
 import { rankIndustryGroups } from "./screens/industryGroups";
@@ -99,6 +100,7 @@ function buildSmaSeries(bars: SymbolHistory["bars"], period: number, visibleCoun
 
 app.use(authProvidersRouter);
 app.use(createUsersRouter());
+app.use(createInterestRouter());
 app.use(
   createTickersRouter({
     lookupTicker: async (symbol) => {

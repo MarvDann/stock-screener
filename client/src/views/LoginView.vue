@@ -8,7 +8,7 @@ import {
   authClient,
   authErrorMessage,
   clearSessionCache,
-  fetchAuthProviders,
+  fetchAuthConfig,
   oauthErrorMessage,
 } from "../auth";
 
@@ -22,9 +22,11 @@ const error = ref(typeof route.query.error === "string" ? oauthErrorMessage(rout
 const notice = ref(route.query.reset ? "Password changed — log in with your new password." : "");
 const loading = ref(false);
 const providers = ref<SocialProvider[]>([]);
+// While only invited emails can sign up, everyone else is pointed at the waiting list instead of Register.
+const inviteOnly = ref(false);
 
 onMounted(async () => {
-  providers.value = await fetchAuthProviders();
+  ({ providers: providers.value, inviteOnly: inviteOnly.value } = await fetchAuthConfig());
 });
 
 function toggleMode() {
@@ -140,12 +142,18 @@ async function socialSignIn(provider: SocialProvider) {
         </button>
       </template>
 
-      <p class="form-footer">
+      <p v-if="inviteOnly && !isRegister" class="form-footer">
+        Not invited yet? <RouterLink :to="{ name: 'welcome', hash: '#interest' }">Register your interest</RouterLink>
+        <br />
+        <a href="#" class="invited-link" @click.prevent="toggleMode">Invited? Create your account</a>
+      </p>
+      <p v-else class="form-footer">
         {{ isRegister ? "Already have an account?" : "Don't have an account?" }}
         <a href="#" @click.prevent="toggleMode">
           {{ isRegister ? "Log in" : "Register" }}
         </a>
       </p>
+      <p class="privacy-link"><RouterLink to="/privacy">Privacy</RouterLink></p>
     </form>
   </AuthLayout>
 </template>
@@ -175,6 +183,18 @@ async function socialSignIn(provider: SocialProvider) {
   font-family: var(--font-ui);
   cursor: pointer;
   transition: border-color 0.15s;
+}
+.privacy-link {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+}
+.privacy-link a {
+  color: var(--text-secondary);
+}
+.invited-link {
+  display: inline-block;
+  margin-top: 6px;
 }
 .social-btn:hover {
   border-color: var(--accent);

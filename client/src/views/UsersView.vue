@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { fetchUsers } from "../api";
-import type { UserSummary } from "../types";
+import { fetchInterestRequests, fetchUsers, removeInterestRequest } from "../api";
+import type { InterestRequest, UserSummary } from "../types";
 import { PROVIDER_LABELS, type SocialProvider } from "../auth";
 
 const users = ref<UserSummary[]>([]);
+const waiting = ref<InterestRequest[]>([]);
+const removeError = ref<string | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -22,11 +24,22 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    users.value = await fetchUsers();
+    [users.value, waiting.value] = await Promise.all([fetchUsers(), fetchInterestRequests()]);
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Failed to load users";
   } finally {
     loading.value = false;
+  }
+}
+
+async function removeRequest(email: string) {
+  if (!confirm(`Remove ${email} from the waiting list?`)) return;
+  removeError.value = null;
+  try {
+    await removeInterestRequest(email);
+    waiting.value = waiting.value.filter((r) => r.email !== email);
+  } catch (err) {
+    removeError.value = err instanceof Error ? err.message : "Couldn't remove them";
   }
 }
 
@@ -80,6 +93,43 @@ onMounted(load);
         </tbody>
       </table>
     </div>
+
+    <template v-if="!loading && !error">
+      <div class="page-header waiting-header">
+        <h2>Waiting list</h2>
+        <span class="count">{{ waiting.length }} {{ waiting.length === 1 ? "person" : "people" }}</span>
+      </div>
+      <p class="muted hint">
+        People who registered interest on the welcome page. To let someone in, add their email to ALLOWED_EMAILS on the
+        server and email them an invite, then remove them here.
+      </p>
+      <p v-if="removeError" class="form-error">{{ removeError }}</p>
+      <div class="table-scroll">
+        <table class="users waiting">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>How they trade</th>
+              <th>Asked</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in waiting" :key="r.email">
+              <td class="email">{{ r.email }}</td>
+              <td>{{ r.name || "—" }}</td>
+              <td class="note">{{ r.note || "—" }}</td>
+              <td class="date">{{ formatDate(r.createdAt) }}</td>
+              <td><button type="button" class="remove-btn" @click="removeRequest(r.email)">Remove</button></td>
+            </tr>
+            <tr v-if="waiting.length === 0">
+              <td colspan="5" class="muted">Nobody's waiting.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -140,6 +190,30 @@ onMounted(load);
 .role.admin {
   color: var(--accent);
   font-weight: 600;
+}
+.waiting-header {
+  margin-top: 32px;
+}
+.hint {
+  margin: 0 0 12px;
+}
+.note {
+  max-width: 360px;
+  white-space: pre-wrap;
+}
+.remove-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.remove-btn:hover {
+  border-color: var(--negative);
+  color: var(--negative);
 }
 .date {
   white-space: nowrap;

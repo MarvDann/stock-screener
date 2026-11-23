@@ -4,6 +4,8 @@ import HomeView from "../views/HomeView.vue";
 import SectorRotationView from "../views/SectorRotationView.vue";
 import StockDetailView from "../views/StockDetailView.vue";
 import LoginView from "../views/LoginView.vue";
+import WelcomeView from "../views/WelcomeView.vue";
+import PrivacyView from "../views/PrivacyView.vue";
 import ForgotPasswordView from "../views/ForgotPasswordView.vue";
 import ResetPasswordView from "../views/ResetPasswordView.vue";
 import AccountView from "../views/AccountView.vue";
@@ -21,9 +23,14 @@ import { getSessionUser } from "../auth";
 // `title` names a page for the stock detail page's back button.
 const router = createRouter({
   history: createWebHistory(),
+  // Only links to a section (e.g. the login page's "/welcome#interest") scroll; other navigation is left as it was.
+  scrollBehavior: (to) => (to.hash ? { el: to.hash } : undefined),
   routes: [
     { path: "/", name: "home", component: HomeView, meta: { title: "Home" } },
     { path: "/login", name: "login", component: LoginView, meta: { public: true } },
+    // What visitors who aren't signed in see at "/": the features, and a form to join the waiting list.
+    { path: "/welcome", name: "welcome", component: WelcomeView, meta: { public: true } },
+    { path: "/privacy", name: "privacy", component: PrivacyView, meta: { public: true } },
     { path: "/forgot-password", name: "forgot-password", component: ForgotPasswordView, meta: { public: true } },
     // Public so an emailed link works whether or not you're logged in.
     { path: "/reset-password", name: "reset-password", component: ResetPasswordView, meta: { public: true } },
@@ -49,7 +56,9 @@ router.beforeEach(async (to) => {
   const user = await getSessionUser();
   if (!to.meta.public && !user) {
     // A failed email verification link lands on "/?error=..."; keep the error so the login page can show it.
-    return { name: "login", query: typeof to.query.error === "string" ? { error: to.query.error } : {} };
+    if (typeof to.query.error === "string") return { name: "login", query: { error: to.query.error } };
+    // A new visitor arriving at the site sees what it is; a deep link (e.g. a bookmarked page) goes to sign-in.
+    return { name: to.name === "home" ? "welcome" : "login" };
   }
   if (to.name === "login" && user) {
     return { name: "home" };

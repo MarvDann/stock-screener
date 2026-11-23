@@ -47,6 +47,12 @@ describe("auth", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("says whether sign-up is invite-only", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ providers: [], inviteOnly: true }) }));
+    const { fetchAuthConfig } = await import("../auth");
+    expect(await fetchAuthConfig()).toEqual({ providers: [], inviteOnly: true });
+  });
+
   it("fetches the configured providers, empty when the request fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ providers: ["google"] }) }));
     const { fetchAuthProviders } = await import("../auth");

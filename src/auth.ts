@@ -125,7 +125,10 @@ export function createAuthOptions({ mailer = createMailer(), env = process.env }
 export const authOptions = createAuthOptions();
 export const auth = betterAuth(authOptions);
 
-/** Tells the login page which social sign-in buttons to show. */
+/**
+ * Tells the login page which social sign-in buttons to show, and whether
+ * sign-up is invite-only (it then points people to the waiting list instead).
+ */
 export const authProvidersRouter = Router().get("/api/auth-providers", (_req, res) => {
-  res.json({ providers: Object.keys(authOptions.socialProviders) });
+  res.json({ providers: Object.keys(authOptions.socialProviders), inviteOnly: parseEmailList(process.env.ALLOWED_EMAILS) !== null });
 });

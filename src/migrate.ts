@@ -60,6 +60,20 @@ const MIGRATIONS: { name: string; up: (client: PoolClient) => Promise<void> }[] 
       await seedEtfs(client);
     },
   },
+  {
+    name: "002_interest_requests",
+    async up(client) {
+      // People who asked to be let in from the public welcome page. Emails are stored lowercased.
+      await client.query(`
+        CREATE TABLE interest_requests (
+          email TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT '',
+          note TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+      `);
+    },
+  },
 ];
 
 /** Brings the database up to date: Better Auth's tables first (watchlists reference users), then the app's. */

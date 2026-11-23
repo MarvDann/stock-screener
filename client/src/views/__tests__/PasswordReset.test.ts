@@ -6,7 +6,7 @@ import ResetPasswordView from "../ResetPasswordView.vue";
 import AccountView from "../AccountView.vue";
 import LoginView from "../LoginView.vue";
 
-const { authClient, getSessionUser, fetchAuthProviders, clearSessionCache } = vi.hoisted(() => ({
+const { authClient, getSessionUser, fetchAuthProviders, fetchAuthConfig, clearSessionCache } = vi.hoisted(() => ({
   authClient: {
     signIn: { email: vi.fn(), social: vi.fn() },
     signUp: { email: vi.fn() },
@@ -18,6 +18,7 @@ const { authClient, getSessionUser, fetchAuthProviders, clearSessionCache } = vi
   },
   getSessionUser: vi.fn(),
   fetchAuthProviders: vi.fn(),
+  fetchAuthConfig: vi.fn(),
   clearSessionCache: vi.fn(),
 }));
 vi.mock("../../auth", async (importOriginal) => ({
@@ -25,6 +26,7 @@ vi.mock("../../auth", async (importOriginal) => ({
   authClient,
   getSessionUser,
   fetchAuthProviders,
+  fetchAuthConfig,
   clearSessionCache,
 }));
 
@@ -39,6 +41,8 @@ async function mountAt(component: object, path: string) {
     routes: [
       { path: "/", component: blank },
       { path: "/login", name: "login", component: blank },
+      { path: "/welcome", name: "welcome", component: blank },
+      { path: "/privacy", name: "privacy", component: blank },
       { path: "/forgot-password", name: "forgot-password", component: blank },
       { path: "/reset-password", name: "reset-password", component: blank },
       { path: "/account", name: "account", component: blank },
@@ -55,6 +59,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSessionUser.mockResolvedValue({ id: "u1", email: "me@example.com", name: "me" });
   fetchAuthProviders.mockResolvedValue([]);
+  // The login page reads both at once; tests set the providers through fetchAuthProviders.
+  fetchAuthConfig.mockImplementation(async () => ({ providers: await fetchAuthProviders(), inviteOnly: false }));
   authClient.listAccounts.mockResolvedValue(ok([{ providerId: "credential" }]));
 });
 
@@ -125,6 +131,18 @@ describe("LoginView", () => {
     await wrapper.find(".form-footer a").trigger("click");
     await submitAs(wrapper, "stranger@example.com", "brand-new-pass");
     expect(wrapper.find(".form-error").text()).toBe("This email isn't on the invite list");
+  });
+
+  it("points people without an invite to the waiting list, keeping sign-up for invited emails", async () => {
+    fetchAuthConfig.mockResolvedValue({ providers: [], inviteOnly: true });
+    const { wrapper } = await mountAt(LoginView, "/login");
+    const footer = wrapper.find(".form-footer");
+    expect(footer.text()).toContain("Not invited yet?");
+    expect(footer.find("a").attributes("href")).toBe("/welcome#interest");
+
+    await wrapper.find(".invited-link").trigger("click");
+    expect(wrapper.find(".form-submit").text()).toBe("Register");
+    expect(wrapper.find(".form-footer").text()).toContain("Already have an account?");
   });
 
   it("offers only the configured social providers", async () => {

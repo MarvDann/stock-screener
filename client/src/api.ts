@@ -2,6 +2,7 @@ import type {
   BreakoutResponse,
   EarningsResponse,
   Etf,
+  InterestRequest,
   EtfsResponse,
   IndustryGroupsResponse,
   OverviewResponse,
@@ -140,6 +141,20 @@ export function deleteTicker(symbol: string): Promise<void> {
 export async function fetchUsers(): Promise<UserSummary[]> {
   const { users } = await fetchJson<{ users: UserSummary[] }>("/api/admin/users");
   return users;
+}
+
+/** The welcome page's register-interest form. Works without signing in. */
+export async function registerInterest(details: { email: string; name?: string; note?: string }): Promise<void> {
+  await fetchJson<{ ok: true }>("/api/interest", { method: "POST", body: details });
+}
+
+export async function fetchInterestRequests(): Promise<InterestRequest[]> {
+  const { requests } = await fetchJson<{ requests: InterestRequest[] }>("/api/admin/interest");
+  return requests;
+}
+
+export function removeInterestRequest(email: string): Promise<void> {
+  return fetchJson<void>(`/api/admin/interest/${encodeURIComponent(email)}`, { method: "DELETE" });
 }
 
 export async function fetchWatchlists(): Promise<Watchlist[]> {

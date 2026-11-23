@@ -3,9 +3,19 @@ import { flushPromises, mount } from "@vue/test-utils";
 import UsersView from "../UsersView.vue";
 
 const fetchUsers = vi.fn();
-vi.mock("../../api", () => ({ fetchUsers: (...args: unknown[]) => fetchUsers(...args) }));
+const fetchInterestRequests = vi.fn();
+const removeInterestRequest = vi.fn();
+vi.mock("../../api", () => ({
+  fetchUsers: (...args: unknown[]) => fetchUsers(...args),
+  fetchInterestRequests: (...args: unknown[]) => fetchInterestRequests(...args),
+  removeInterestRequest: (...args: unknown[]) => removeInterestRequest(...args),
+}));
 
 beforeEach(() => {
+  fetchInterestRequests.mockReset().mockResolvedValue([
+    { email: "jane@example.com", name: "Jane", note: "Swing trader", createdAt: "2026-11-22T10:00:00Z" },
+  ]);
+  removeInterestRequest.mockReset().mockResolvedValue(undefined);
   fetchUsers.mockReset().mockResolvedValue([
     {
       id: "u2",
@@ -34,7 +44,7 @@ describe("UsersView", () => {
   it("lists each user with their role, sign-in methods and activity", async () => {
     const wrapper = mount(UsersView);
     await flushPromises();
-    const rows = wrapper.findAll("tbody tr");
+    const rows = wrapper.findAll("table:not(.waiting) tbody tr");
     expect(rows).toHaveLength(2);
     expect(wrapper.find(".count").text()).toBe("2 accounts");
 
@@ -56,6 +66,22 @@ describe("UsersView", () => {
 
     await wrapper.find(".error-state button").trigger("click");
     await flushPromises();
-    expect(wrapper.findAll("tbody tr")).toHaveLength(2);
+    expect(wrapper.findAll("table:not(.waiting) tbody tr")).toHaveLength(2);
+  });
+
+  it("shows the waiting list and removes someone after confirming", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const wrapper = mount(UsersView);
+    await flushPromises();
+    const rows = () => wrapper.findAll(".waiting tbody tr");
+    expect(rows()[0].text()).toContain("jane@example.com");
+    expect(rows()[0].text()).toContain("Swing trader");
+    expect(wrapper.findAll(".count")[1].text()).toBe("1 person");
+
+    await rows()[0].find(".remove-btn").trigger("click");
+    await flushPromises();
+    expect(removeInterestRequest).toHaveBeenCalledWith("jane@example.com");
+    expect(rows()[0].text()).toContain("Nobody's waiting.");
+    vi.unstubAllGlobals();
   });
 });

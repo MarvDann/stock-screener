@@ -139,6 +139,17 @@ be signed out server-side.
   (any method). Taking an email off the list locks that account out at its
   next sign-in. Sign-ups from other emails get the same "check your email"
   response as real ones, so the list can't be probed.
+- **Welcome page and waiting list:** visitors who aren't signed in land on
+  `/welcome`, which shows the features, says plainly what the site doesn't do
+  (no real-time quotes, alerts or trading; not financial advice) and has a
+  register-interest form. Requests are stored in `interest_requests`, emailed
+  to the admins, and listed on the **Users** page. To let someone in, add them
+  to `ALLOWED_EMAILS` and send an invite.
+- **Privacy:** `/privacy` explains what's stored and who handles it
+  (Hostinger, Resend, Google/GitHub). The only cookie is the essential
+  session cookie and there are no trackers, so there's no cookie banner;
+  fonts are bundled rather than loaded from Google. Update that page if
+  either changes.
 - **Admins:** emails in `ADMIN_EMAILS` are admins. Everyone can add tickers
   and ETFs, but only admins can edit or remove them (names, custom groups, ETF
   categories), since those change everyone's screens. Only admins see the

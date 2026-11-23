@@ -361,3 +361,11 @@ export interface UserSummary {
   /** Null if they've never signed in. */
   lastActiveAt: string | null;
 }
+
+/** Someone who asked to be let in from the welcome page. */
+export interface InterestRequest {
+  email: string;
+  name: string;
+  note: string;
+  createdAt: string;
+}
