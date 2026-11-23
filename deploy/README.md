@@ -19,6 +19,9 @@ Internet ──443──▶ nginx ──┬─ /api/*  ──▶ Express on 127.
 | Database | Postgres 16, database and role `stockwatch`, listening on localhost only |
 | Backups | `/home/stockwatch/backups`, nightly at 03:17 UTC via the `stockwatch` crontab, kept 14 days |
 | Firewall | ufw: only SSH, 80 and 443 in |
+| SSH | keys only: `/etc/ssh/sshd_config.d/00-hardening.conf` turns off passwords (root can log in with a key) |
+| Logs | `~/.pm2/logs`, rotated by `pm2-logrotate` at 10 MB, 14 kept, compressed |
+| Uptime | `.github/workflows/uptime.yml` checks the site every 15 minutes; a failed run emails you |
 
 ## How a deploy works
 
@@ -103,6 +106,11 @@ ln -s /etc/nginx/sites-available/stockwatch.cloud /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 certbot --nginx -d stockwatch.cloud -d www.stockwatch.cloud --redirect
 
+# SSH, keys only (sshd keeps the first value it reads, so this must sort before 50-cloud-init.conf):
+#   printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' \
+#     > /etc/ssh/sshd_config.d/00-hardening.conf && sshd -t && systemctl reload ssh
+# Log rotation, as stockwatch: pm2 install pm2-logrotate, then
+#   pm2 set pm2-logrotate:max_size 10M; pm2 set pm2-logrotate:retain 14; pm2 set pm2-logrotate:compress true
 # Deploy key, as root: ssh-keygen -t ed25519 -f /root/stockwatch_deploy,
 # then add "restrict <public key>" to /home/stockwatch/.ssh/authorized_keys.
 # Backups: copy deploy/backup.sh to /home/stockwatch/ and add to stockwatch's crontab:

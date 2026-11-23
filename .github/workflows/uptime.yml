@@ -1,0 +1,29 @@
+name: Uptime
+
+# Checks the sites every 15 minutes. A failed run means a site is down, and
+# GitHub emails whoever last changed this schedule. (GitHub pauses scheduled
+# workflows in repos with no activity for 60 days; re-enable from the Actions tab.)
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check stockwatch.cloud and martindann.com
+        run: |
+          failed=0
+          for url in https://stockwatch.cloud/ https://stockwatch.cloud/api/auth-providers https://martindann.com/; do
+            # Three tries a minute apart, so a deploy's restart or a blip doesn't alert.
+            if curl -fsS -o /dev/null --max-time 20 --retry 2 --retry-delay 60 --retry-all-errors "$url"; then
+              echo "up: $url"
+            else
+              echo "::error::DOWN: $url"
+              failed=1
+            fi
+          done
+          exit $failed
