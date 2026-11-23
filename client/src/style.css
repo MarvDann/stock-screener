@@ -194,6 +194,13 @@ body {
   transition: border-color 0.15s;
 }
 
+/* iPhones zoom the page into any text box with text under 16px, so phones get 16px. */
+@media (max-width: 800px) {
+  .field-input {
+    font-size: 16px;
+  }
+}
+
 .field-input:focus {
   border-color: var(--accent);
 }

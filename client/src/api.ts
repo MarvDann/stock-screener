@@ -143,8 +143,17 @@ export async function fetchUsers(): Promise<UserSummary[]> {
   return users;
 }
 
-/** The welcome page's register-interest form. Works without signing in. */
-export async function registerInterest(details: { email: string; name?: string; note?: string }): Promise<void> {
+/** A token for the register-interest form, fetched when the page loads (it proves the form came from the page). */
+export async function fetchInterestToken(): Promise<string> {
+  const { token } = await fetchJson<{ token: string }>("/api/interest/token");
+  return token;
+}
+
+/**
+ * The welcome page's register-interest form. Works without signing in.
+ * `website` is the hidden field only bots fill in.
+ */
+export async function registerInterest(details: { email: string; name?: string; token: string; website?: string }): Promise<void> {
   await fetchJson<{ ok: true }>("/api/interest", { method: "POST", body: details });
 }
 

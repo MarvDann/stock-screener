@@ -39,7 +39,7 @@ async function logout() {
   resetStockCardCache();
   resetCachedResources();
   void cacheClear();
-  router.push("/login");
+  router.push("/welcome");
 }
 </script>
 

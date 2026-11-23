@@ -13,7 +13,7 @@ vi.mock("../../api", () => ({
 
 beforeEach(() => {
   fetchInterestRequests.mockReset().mockResolvedValue([
-    { email: "jane@example.com", name: "Jane", note: "Swing trader", createdAt: "2026-11-22T10:00:00Z" },
+    { email: "jane@example.com", name: "Jane", createdAt: "2026-11-22T10:00:00Z" },
   ]);
   removeInterestRequest.mockReset().mockResolvedValue(undefined);
   fetchUsers.mockReset().mockResolvedValue([
@@ -75,7 +75,7 @@ describe("UsersView", () => {
     await flushPromises();
     const rows = () => wrapper.findAll(".waiting tbody tr");
     expect(rows()[0].text()).toContain("jane@example.com");
-    expect(rows()[0].text()).toContain("Swing trader");
+    expect(rows()[0].text()).toContain("Jane");
     expect(wrapper.findAll(".count")[1].text()).toBe("1 person");
 
     await rows()[0].find(".remove-btn").trigger("click");

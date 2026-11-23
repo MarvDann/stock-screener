@@ -110,7 +110,6 @@ onMounted(load);
             <tr>
               <th>Email</th>
               <th>Name</th>
-              <th>How they trade</th>
               <th>Asked</th>
               <th></th>
             </tr>
@@ -119,12 +118,11 @@ onMounted(load);
             <tr v-for="r in waiting" :key="r.email">
               <td class="email">{{ r.email }}</td>
               <td>{{ r.name || "—" }}</td>
-              <td class="note">{{ r.note || "—" }}</td>
               <td class="date">{{ formatDate(r.createdAt) }}</td>
               <td><button type="button" class="remove-btn" @click="removeRequest(r.email)">Remove</button></td>
             </tr>
             <tr v-if="waiting.length === 0">
-              <td colspan="5" class="muted">Nobody's waiting.</td>
+              <td colspan="4" class="muted">Nobody's waiting.</td>
             </tr>
           </tbody>
         </table>
@@ -196,10 +194,6 @@ onMounted(load);
 }
 .hint {
   margin: 0 0 12px;
-}
-.note {
-  max-width: 360px;
-  white-space: pre-wrap;
 }
 .remove-btn {
   background: none;

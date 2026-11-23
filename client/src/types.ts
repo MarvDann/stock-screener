@@ -366,6 +366,5 @@ export interface UserSummary {
 export interface InterestRequest {
   email: string;
   name: string;
-  note: string;
   createdAt: string;
 }

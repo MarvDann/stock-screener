@@ -57,8 +57,8 @@ router.beforeEach(async (to) => {
   if (!to.meta.public && !user) {
     // A failed email verification link lands on "/?error=..."; keep the error so the login page can show it.
     if (typeof to.query.error === "string") return { name: "login", query: { error: to.query.error } };
-    // A new visitor arriving at the site sees what it is; a deep link (e.g. a bookmarked page) goes to sign-in.
-    return { name: to.name === "home" ? "welcome" : "login" };
+    // Anyone signed out starts at the welcome page, which has a Sign in button for invited users.
+    return { name: "welcome" };
   }
   if (to.name === "login" && user) {
     return { name: "home" };

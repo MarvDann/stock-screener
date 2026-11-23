@@ -139,11 +139,14 @@ be signed out server-side.
   (any method). Taking an email off the list locks that account out at its
   next sign-in. Sign-ups from other emails get the same "check your email"
   response as real ones, so the list can't be probed.
-- **Welcome page and waiting list:** visitors who aren't signed in land on
-  `/welcome`, which shows the features, says plainly what the site doesn't do
+- **Welcome page and waiting list:** anyone signed out (including after
+  logging out) lands on `/welcome`, which shows the features, says plainly what the site doesn't do
   (no real-time quotes, alerts or trading; not financial advice) and has a
   register-interest form. Requests are stored in `interest_requests`, emailed
-  to the admins, and listed on the **Users** page. To let someone in, add them
+  to the admins (at most 10 emails an hour), and listed on the **Users** page.
+  Bots are kept out without a captcha: a hidden field only bots fill in, a
+  signed token from page load that's only accepted after a few seconds, and a
+  per-address rate limit. Caught bots are told it worked but nothing is saved. To let someone in, add them
   to `ALLOWED_EMAILS` and send an invite.
 - **Privacy:** `/privacy` explains what's stored and who handles it
   (Hostinger, Resend, Google/GitHub). The only cookie is the essential

@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import {
   Activity,
   ArrowRight,
   CalendarDays,
   ChartCandlestick,
   Check,
-  Layers,
   LayoutDashboard,
   ListChecks,
+  ListPlus,
   Network,
   Repeat,
   TrendingUp,
@@ -18,10 +18,12 @@ import BrandLogo from "../components/BrandLogo.vue";
 import ThemeSwitcher from "../components/ThemeSwitcher.vue";
 import HeroArt from "../components/HeroArt.vue";
 import { useTheme } from "../composables/useTheme";
-import { registerInterest } from "../api";
+import { fetchInterestToken, registerInterest } from "../api";
 
-const { initTheme } = useTheme();
-onMounted(initTheme);
+const { theme, initTheme } = useTheme();
+
+// The dashboard screenshot matches the theme picked in the top bar.
+const screenshot = computed(() => `/images/home-${theme.value}.png`);
 
 const FEATURES = [
   {
@@ -55,6 +57,11 @@ const FEATURES = [
     text: "Keep your own lists of stocks to follow, each shown as a page of charts.",
   },
   {
+    icon: ListPlus,
+    title: "Add your own tickers",
+    text: "Missing a stock? Add any ticker Yahoo Finance covers, from any market, and it joins the screens and charts.",
+  },
+  {
     icon: CalendarDays,
     title: "Earnings calendar",
     text: "Which companies report this week, and whether before the open or after the close, in your local time.",
@@ -68,20 +75,35 @@ const FEATURES = [
 
 // Said plainly so nobody signs up expecting a trading terminal.
 const DOES = [
-  "Screens about 870 US stocks: the S&P 500 plus the companies they compete with",
+  "Screens about 870 stocks: the S&P 500 and the companies they compete with, plus over 100 UK-listed companies",
+  "Lets you add any other stock Yahoo Finance covers, from any market",
   "Runs on end-of-day price history, which suits swing and position trading",
   "Reruns its scans whenever you open a page, so results reflect the latest session",
 ];
 const DOESNT = [
   "No real-time streaming quotes: prices come from Yahoo Finance and can be delayed",
-  "No small caps, funds or markets beyond the US, apart from a few index ETFs",
+  "Sector rotation is measured with US sector funds, so it reflects the US market rather than the UK's",
   "No alerts, notifications or connection to a broker, and no trading",
   "Not financial advice: a tool to help you research, not a source of tips",
 ];
 
 const email = ref("");
 const name = ref("");
-const note = ref("");
+// Bot checks (see the server's interest.ts): a hidden field people never see, so never fill in, and a token
+// from page load that the server only accepts after a few seconds, since people take longer than that to type.
+const website = ref("");
+const MIN_FILL_MS = 3500;
+const TOKEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+let token: { value: string; fetchedAt: number } | null = null;
+
+async function loadToken() {
+  token = { value: await fetchInterestToken(), fetchedAt: Date.now() };
+}
+
+onMounted(() => {
+  initTheme();
+  loadToken().catch(() => (token = null));
+});
 const sending = ref(false);
 const sent = ref(false);
 const error = ref("");
@@ -90,7 +112,12 @@ async function submit() {
   error.value = "";
   sending.value = true;
   try {
-    await registerInterest({ email: email.value.trim(), name: name.value.trim(), note: note.value.trim() });
+    // A tab left open a long time, or a failed load, gets a fresh token.
+    if (!token || Date.now() - token.fetchedAt > TOKEN_MAX_AGE_MS) await loadToken();
+    // Someone quick (e.g. with autofill) waits the last moment rather than being taken for a bot.
+    const wait = token!.fetchedAt + MIN_FILL_MS - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    await registerInterest({ email: email.value.trim(), name: name.value.trim(), token: token!.value, website: website.value });
     sent.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Something went wrong — try again";
@@ -116,13 +143,16 @@ async function submit() {
         <p class="eyebrow">Early access · invite only</p>
         <h1>Find the stocks that are leading the market</h1>
         <p class="lede">
-          StockWatch is a stock screener and charting site for swing and position traders. It screens US stocks for
-          strong trends and breakout setups, and shows which sectors and industries are leading.
+          StockWatch is a stock screener and charting site for swing and position traders. It screens US and UK stocks
+          for strong trends and breakout setups, and shows which sectors and industries are leading.
         </p>
         <a href="#interest" class="btn-primary cta">Register your interest <ArrowRight :size="16" /></a>
       </div>
       <figure class="screenshot">
-        <img src="/images/home-dashboard.png" alt="The StockWatch home dashboard: index tiles, market breadth, sector rotation and top movers" />
+        <!-- Opens full size, mostly for phones, where it's too small to read. -->
+        <a :href="screenshot" target="_blank" rel="noopener" aria-label="Open the screenshot full size">
+          <img :src="screenshot" alt="The StockWatch home dashboard: index tiles, market breadth, sector rotation and top movers" />
+        </a>
       </figure>
     </section>
 
@@ -182,9 +212,10 @@ async function submit() {
               <span class="field-label">Name <span class="optional">(optional)</span></span>
               <input v-model="name" type="text" maxlength="100" autocomplete="name" class="field-input" />
             </label>
-            <label class="field">
-              <span class="field-label">How do you trade or invest? <span class="optional">(optional)</span></span>
-              <textarea v-model="note" rows="3" maxlength="1000" class="field-input" />
+            <!-- Hidden from people (and screen readers); bots filling in every field give themselves away. -->
+            <label class="trap" aria-hidden="true">
+              Website
+              <input v-model="website" type="text" name="website" tabindex="-1" autocomplete="off" />
             </label>
             <button type="submit" class="form-submit btn-primary" :disabled="sending">
               {{ sending ? "Sending…" : "Register interest" }}
@@ -210,6 +241,19 @@ async function submit() {
 </template>
 
 <style scoped>
+/* Even line lengths for headings and the short sentences between panels; no lone last word in longer text. */
+.welcome h1,
+.welcome h2,
+.section-lede,
+.fine-print,
+.footer p {
+  text-wrap: balance;
+}
+.lede,
+.feature p,
+.expect-col li {
+  text-wrap: pretty;
+}
 .welcome {
   min-height: 100vh;
   background: var(--bg);
@@ -291,6 +335,9 @@ async function submit() {
   position: relative;
   margin: 0;
 }
+.screenshot a {
+  display: block;
+}
 .screenshot img {
   display: block;
   width: 100%;
@@ -317,12 +364,14 @@ async function submit() {
 }
 .section-lede.small {
   margin: 20px 0 0;
+  max-width: none;
   font-size: 13px;
 }
 
 .features {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  /* Three across on wide screens, so the nine cards make a full grid. */
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 16px;
   margin-top: 20px;
 }
@@ -408,8 +457,12 @@ async function submit() {
 .optional {
   opacity: 0.7;
 }
-textarea.field-input {
-  resize: vertical;
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 .fine-print {
   margin: 0;

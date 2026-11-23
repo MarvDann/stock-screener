@@ -32,8 +32,8 @@ const LAST_UPDATED = "23 November 2026";
       <h2>What we keep</h2>
       <ul>
         <li>
-          <strong>If you register interest:</strong> your email address, and your name and the note about how you
-          trade if you give them, with the date you asked. We use them to decide who to invite next and to email you
+          <strong>If you register interest:</strong> your email address, your name if you give it, and the date you
+          asked. We use them to decide who to invite next and to email you
           an invite.
         </li>
         <li>
@@ -146,6 +146,7 @@ const LAST_UPDATED = "23 November 2026";
 .doc p,
 .doc li {
   color: var(--text-secondary);
+  text-wrap: pretty;
 }
 .doc strong {
   color: var(--text-primary);

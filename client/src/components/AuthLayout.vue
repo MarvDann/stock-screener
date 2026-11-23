@@ -14,7 +14,8 @@ onMounted(initTheme);
   <div class="auth-page">
     <ThemeSwitcher class="theme-toggle" />
     <div class="auth-card">
-      <h1 class="auth-title"><BrandLogo size="lg" /></h1>
+      <!-- Signed out, "/" leads to the welcome page. -->
+      <h1 class="auth-title"><RouterLink to="/" class="home-link" aria-label="StockWatch home"><BrandLogo size="lg" /></RouterLink></h1>
       <p class="auth-subtitle">{{ subtitle }}</p>
       <slot />
     </div>
@@ -51,6 +52,9 @@ onMounted(initTheme);
   margin: 0;
   display: flex;
   justify-content: center;
+}
+.home-link {
+  text-decoration: none;
 }
 .auth-subtitle {
   margin: 0 0 8px;
