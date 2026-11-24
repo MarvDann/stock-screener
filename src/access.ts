@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { execute, query, queryOne, transaction } from "./db";
-import { createMailer, Mailer } from "./email";
+import { createMailer, Mailer, renderEmail } from "./email";
 import { serverAllowlist } from "./allowlist";
 import { requireAdmin } from "./middleware/requireAuth";
 
@@ -12,10 +12,6 @@ export interface PendingInvite {
 
 const MAX_EMAIL_LENGTH = 254;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
 
 /** People let in who haven't signed up yet, newest first. */
 export async function listPendingInvites(): Promise<PendingInvite[]> {
@@ -42,28 +38,34 @@ export function createAccessRouter({ mailer = createMailer(), env = process.env 
   const router = Router();
   const appUrl = () => (env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "");
 
-  /** Tells them they're in. Returns false if the email couldn't be sent, so the admin can let them know another way. */
-  async function sendInvite(email: string, hasAccount: boolean): Promise<boolean> {
-    const link = hasAccount ? `${appUrl()}/login` : `${appUrl()}/login?register=1&email=${encodeURIComponent(email)}`;
-    const lines = hasAccount
-      ? ["Your access to StockWatch has been restored.", "", "Sign in here:", link]
-      : [
-          "Good news: you can now use StockWatch.",
-          "",
-          `Create your account with this email address (${email}) here:`,
-          link,
-          "",
-          "StockWatch is an early, independent project, so if something looks wrong, just reply to let us know.",
-        ];
+  /**
+   * Tells them they're in, as a short personal email with one button.
+   * Returns false if it couldn't be sent, so the admin can let them know another way.
+   */
+  async function sendInvite(email: string, who: { hasAccount: boolean; name: string; fromWaitingList: boolean }): Promise<boolean> {
+    const content = who.hasAccount
+      ? renderEmail({
+          name: who.name,
+          paragraphs: ["Your access to StockWatch has been restored, so you can sign in again."],
+          button: { label: "Sign in", url: `${appUrl()}/login` },
+          reason: "You're getting this because you have a StockWatch account.",
+        })
+      : renderEmail({
+          name: who.name,
+          paragraphs: who.fromWaitingList
+            ? ["Thanks for joining the StockWatch waiting list.", "Your place is ready, so you can now create your account."]
+            : ["You've been invited to StockWatch, a stock screener and charting site for swing and position traders."],
+          button: { label: "Create your account", url: `${appUrl()}/login?register=1&email=${encodeURIComponent(email)}` },
+          after: [`Sign up with this email address (${email}).`],
+          reason: who.fromWaitingList
+            ? "You're getting this because you joined the waiting list on stockwatch.cloud."
+            : "You're getting this because this address was invited to StockWatch.",
+        });
     try {
       await mailer.send({
         to: email,
-        subject: hasAccount ? "Your StockWatch access is back" : "You're invited to StockWatch",
-        text: lines.join("\n"),
-        html: lines
-          .filter(Boolean)
-          .map((l) => (l === link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>` : `<p>${escapeHtml(l)}</p>`))
-          .join(""),
+        subject: who.hasAccount ? "Your StockWatch access is back" : "Your StockWatch invite",
+        ...content,
       });
       return true;
     } catch (err) {
@@ -92,16 +94,24 @@ export function createAccessRouter({ mailer = createMailer(), env = process.env 
       res.status(409).json({ error: "They already have access (set on the server)" });
       return;
     }
-    await transaction(async (client) => {
+    const waiting = await transaction(async (client) => {
       await client.query(
         `INSERT INTO allowed_emails (email, added_by, invited_at) VALUES ($1, $2, now())
          ON CONFLICT (email) DO UPDATE SET invited_at = now()`,
         [email, req.user!.email]
       );
-      await client.query("DELETE FROM interest_requests WHERE email = $1", [email]);
+      return (await client.query<{ name: string }>("DELETE FROM interest_requests WHERE email = $1 RETURNING name", [email])).rows[0];
     });
-    const hasAccount = (await queryOne(`SELECT 1 FROM "user" WHERE lower(email) = $1`, [email])) !== undefined;
-    res.json({ emailed: await sendInvite(email, hasAccount) });
+    const account = await queryOne<{ name: string }>(`SELECT name FROM "user" WHERE lower(email) = $1`, [email]);
+    // Password sign-ups get their email's first part as a name, which reads oddly in a greeting.
+    const accountName = account && account.name !== email.split("@")[0] ? account.name : "";
+    res.json({
+      emailed: await sendInvite(email, {
+        hasAccount: account !== undefined,
+        name: accountName || waiting?.name || "",
+        fromWaitingList: waiting !== undefined,
+      }),
+    });
   });
 
   // Takes access away: signs them out everywhere and stops them signing in or signing up again.

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { betterAuth, BetterAuthOptions } from "better-auth";
 import { APIError } from "better-auth/api";
 import { pool, queryOne } from "./db";
-import { createMailer, Mailer } from "./email";
+import { createMailer, Mailer, renderEmail } from "./email";
 import { isEmailAllowed, parseEmailList, serverAllowlist } from "./allowlist";
 
 export { parseEmailList };
@@ -22,12 +22,6 @@ function socialProviders(env: NodeJS.ProcessEnv): NonNullable<BetterAuthOptions[
   return providers;
 }
 
-function linkEmail(action: string, url: string) {
-  return {
-    text: [`${action}:`, url, "", "If this wasn't you, you can ignore this email."].join("\n"),
-    html: `<p><a href="${url}">${action}</a></p><p>If this wasn't you, you can ignore this email.</p>`,
-  };
-}
 
 export interface AuthOptionsDeps {
   mailer?: Mailer;
@@ -59,7 +53,12 @@ export function createAuthOptions({ mailer = createMailer(), env = process.env }
         await mailer.send({
           to: user.email,
           subject: "Reset your StockWatch password",
-          ...linkEmail("Choose a new password (the link works once, for the next hour)", url),
+          ...renderEmail({
+            paragraphs: ["Someone, hopefully you, asked to reset the password for your StockWatch account."],
+            button: { label: "Choose a new password", url },
+            after: ["The link works once, for the next hour."],
+            reason: "If you didn't ask for this, you can ignore this email and your password won't change.",
+          }),
         });
       },
     },
@@ -71,7 +70,11 @@ export function createAuthOptions({ mailer = createMailer(), env = process.env }
         await mailer.send({
           to: user.email,
           subject: "Verify your StockWatch email",
-          ...linkEmail("Verify your email address", url),
+          ...renderEmail({
+            paragraphs: ["Thanks for signing up to StockWatch.", "Please confirm this is your email address to finish setting up your account."],
+            button: { label: "Verify my email", url },
+            reason: "If you didn't sign up for StockWatch, you can ignore this email.",
+          }),
         });
       },
     },

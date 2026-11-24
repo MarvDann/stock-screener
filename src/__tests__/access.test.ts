@@ -73,13 +73,22 @@ describe("admin access endpoints", () => {
     expect(await queryOne("SELECT 1 FROM interest_requests WHERE email = 'jane@example.com'")).toBeUndefined();
     expect(await invites()).toEqual([expect.objectContaining({ email: "jane@example.com" })]);
 
-    expect(sent.at(-1)).toMatchObject({ to: "jane@example.com", subject: "You're invited to StockWatch" });
-    expect(sent.at(-1)!.text).toContain("https://stockwatch.test/login?register=1&email=jane%40example.com");
+    const invite = sent.at(-1)!;
+    expect(invite).toMatchObject({ to: "jane@example.com", subject: "Your StockWatch invite" });
+    expect(invite.text).toContain("Hi Jane,");
+    expect(invite.text).toContain("Thanks for joining the StockWatch waiting list.");
+    expect(invite.text).toContain("https://stockwatch.test/login?register=1&email=jane%40example.com");
+    expect(invite.html).toContain('href="https://stockwatch.test/login?register=1&amp;email=jane%40example.com"');
+    expect(invite.html).toContain(">Create your account</a>");
   });
 
   it("says when the invite email couldn't be sent, but still lets them in", async () => {
     failNextEmail = true;
     expect(await (await allow("bob@example.com")).json()).toEqual({ emailed: false });
+    // Not from the waiting list, so it's a plain invite.
+    expect((await allow("bob@example.com")).status).toBe(200);
+    expect(sent.at(-1)!.text).toContain("You've been invited to StockWatch");
+    expect(sent.at(-1)!.text).toContain("Hi,");
     expect(await isEmailAllowed("bob@example.com", env)).toBe(true);
   });
 
