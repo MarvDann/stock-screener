@@ -207,6 +207,8 @@ body {
 
 .form-error,
 .form-success {
+  /* Messages put each sentence on its own line with "\n". */
+  white-space: pre-line;
   font-size: 13px;
   padding: 10px 12px;
   border-radius: 6px;

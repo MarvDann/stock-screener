@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { toNodeHandler } from "better-auth/node";
 import { createAuthOptions, parseEmailList } from "../auth";
 import { requireAuth } from "../middleware/requireAuth";
-import { queryOne } from "../db";
+import { execute, queryOne } from "../db";
 import type { EmailMessage, Mailer } from "../email";
 
 const sent: EmailMessage[] = [];
@@ -153,5 +153,16 @@ describe("sessions", () => {
       asResponse: true,
     });
     expect(res.status).toBe(403);
+  });
+
+  it("lets in someone an admin allowed from the Users page, and locks them out again when revoked", async () => {
+    // Not on ALLOWED_EMAILS, but let in: sign-up works.
+    await execute("INSERT INTO allowed_emails (email) VALUES ('letin@example.com')");
+    await signUpVerified("letin@example.com");
+    const signIn = () => auth.api.signInEmail({ body: { email: "letin@example.com", password: "original-pass" }, asResponse: true });
+    expect((await signIn()).status).toBe(200);
+
+    await execute("DELETE FROM allowed_emails WHERE email = 'letin@example.com'");
+    expect((await signIn()).status).toBe(403);
   });
 });

@@ -79,7 +79,8 @@ onMounted(() => load());
       <div>
         <h2>Earnings</h2>
         <p class="subtitle">
-          Tracked companies reporting in the next 7 days. Times in your local time{{ timeZoneName ? ` (${timeZoneName})` : "" }}.
+          Tracked companies reporting in the next 7 days.<br />
+          Times in your local time{{ timeZoneName ? ` (${timeZoneName})` : "" }}.
         </p>
       </div>
       <div class="header-actions">

@@ -34,7 +34,7 @@ async function submit() {
   <AuthLayout subtitle="Reset your password">
     <div v-if="sentMessage" class="form">
       <p class="form-success">{{ sentMessage }}</p>
-      <p class="form-footer">The link works once, for the next hour. Check your spam folder if it doesn't arrive.</p>
+      <p class="form-footer">The link works once, for the next hour.<br />Check your spam folder if it doesn't arrive.</p>
       <p class="form-footer"><RouterLink to="/login">Back to log in</RouterLink></p>
     </div>
 

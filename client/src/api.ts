@@ -3,6 +3,7 @@ import type {
   EarningsResponse,
   Etf,
   InterestRequest,
+  PendingInvite,
   EtfsResponse,
   IndustryGroupsResponse,
   OverviewResponse,
@@ -160,6 +161,21 @@ export async function registerInterest(details: { email: string; name?: string; 
 export async function fetchInterestRequests(): Promise<InterestRequest[]> {
   const { requests } = await fetchJson<{ requests: InterestRequest[] }>("/api/admin/interest");
   return requests;
+}
+
+export async function fetchInvites(): Promise<PendingInvite[]> {
+  const { invites } = await fetchJson<{ invites: PendingInvite[] }>("/api/admin/invites");
+  return invites;
+}
+
+/** Lets someone in and emails them; `emailed` is false if the email couldn't be sent. */
+export function allowAccess(email: string): Promise<{ emailed: boolean }> {
+  return fetchJson<{ emailed: boolean }>("/api/admin/access", { method: "POST", body: { email } });
+}
+
+/** Takes someone's access away and signs them out. */
+export function revokeAccess(email: string): Promise<void> {
+  return fetchJson<void>(`/api/admin/access/${encodeURIComponent(email)}`, { method: "DELETE" });
 }
 
 export function removeInterestRequest(email: string): Promise<void> {

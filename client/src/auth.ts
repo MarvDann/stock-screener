@@ -81,10 +81,10 @@ export function oauthErrorMessage(code: string): string {
   if (text.includes("access denied")) return "Sign-in was cancelled.";
   // From an email verification link.
   if (text.includes("invalid token") || text.includes("token expired")) {
-    return "That verification link is invalid or has expired. Log in to be sent a new one.";
+    return "That verification link is invalid or has expired.\nLog in to be sent a new one.";
   }
   if (text.includes("account not linked")) {
-    return "That email already has an account. Log in with your password, then connect this provider from the Account page.";
+    return "That email already has an account.\nLog in with your password, then connect this provider from the Account page.";
   }
   if (text.includes("email not found")) return "That account didn't share an email address, which is needed to sign in.";
   return "Sign-in didn't complete — try again.";

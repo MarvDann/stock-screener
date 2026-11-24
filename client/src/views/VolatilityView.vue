@@ -195,7 +195,7 @@ onMounted(() => load());
             {{ fixed(data.vvix.close) }}
             <small class="move" :class="moveClass(data.vvix)">{{ signed(data.vvix.changePct, 1, "%") }}</small>
           </span>
-          <span class="stat-note">Volatility of the VIX itself. Above ~100, traders expect big swings in fear.</span>
+          <span class="stat-note">Volatility of the VIX itself.<br />Above ~100, traders expect big swings in fear.</span>
         </section>
       </div>
 

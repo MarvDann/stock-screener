@@ -3,21 +3,12 @@ import { betterAuth, BetterAuthOptions } from "better-auth";
 import { APIError } from "better-auth/api";
 import { pool, queryOne } from "./db";
 import { createMailer, Mailer } from "./email";
+import { isEmailAllowed, parseEmailList, serverAllowlist } from "./allowlist";
+
+export { parseEmailList };
 
 const APP_URL = (process.env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "");
 const NOT_INVITED = "This email isn't on the invite list";
-
-/**
- * A comma-separated list of emails (ALLOWED_EMAILS, ADMIN_EMAILS), lowercased;
- * null when empty or unset.
- */
-export function parseEmailList(raw: string | undefined): Set<string> | null {
-  const emails = (raw ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return emails.length > 0 ? new Set(emails) : null;
-}
 
 /** The social logins with credentials configured, in the order the login page shows them. */
 function socialProviders(env: NodeJS.ProcessEnv): NonNullable<BetterAuthOptions["socialProviders"]> {
@@ -49,9 +40,8 @@ export interface AuthOptionsDeps {
  * httpOnly cookies backed by the `session` table.
  */
 export function createAuthOptions({ mailer = createMailer(), env = process.env }: AuthOptionsDeps = {}) {
-  // Only these emails can sign up or sign in. Unset allows everyone.
-  const allowlist = parseEmailList(env.ALLOWED_EMAILS);
-  const isAllowed = (email: string) => !allowlist || allowlist.has(email.toLowerCase());
+  // Only emails on ALLOWED_EMAILS or let in from the Users page can sign up or sign in. Unset allows everyone.
+  const isAllowed = (email: string) => isEmailAllowed(email, env);
 
   return {
     appName: "StockWatch",
@@ -105,16 +95,16 @@ export function createAuthOptions({ mailer = createMailer(), env = process.env }
       user: {
         create: {
           async before(user) {
-            if (!isAllowed(user.email)) throw new APIError("FORBIDDEN", { code: "not_invited", message: NOT_INVITED });
+            if (!(await isAllowed(user.email))) throw new APIError("FORBIDDEN", { code: "not_invited", message: NOT_INVITED });
           },
         },
       },
       session: {
         create: {
-          // Also checked at sign-in, so removing someone from the list locks them out.
+          // Also checked at sign-in, so revoking someone's access locks them out.
           async before(session) {
             const user = await queryOne<{ email: string }>(`SELECT email FROM "user" WHERE id = $1`, [session.userId]);
-            if (!user || !isAllowed(user.email)) throw new APIError("FORBIDDEN", { code: "not_invited", message: NOT_INVITED });
+            if (!user || !(await isAllowed(user.email))) throw new APIError("FORBIDDEN", { code: "not_invited", message: NOT_INVITED });
           },
         },
       },
@@ -130,5 +120,5 @@ export const auth = betterAuth(authOptions);
  * sign-up is invite-only (it then points people to the waiting list instead).
  */
 export const authProvidersRouter = Router().get("/api/auth-providers", (_req, res) => {
-  res.json({ providers: Object.keys(authOptions.socialProviders), inviteOnly: parseEmailList(process.env.ALLOWED_EMAILS) !== null });
+  res.json({ providers: Object.keys(authOptions.socialProviders), inviteOnly: serverAllowlist() !== null });
 });

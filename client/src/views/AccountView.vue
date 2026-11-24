@@ -63,7 +63,7 @@ async function submit() {
       error.value = authErrorMessage(err, "Couldn't change your password");
       return;
     }
-    success.value = "Password changed. You've been signed out on other devices.";
+    success.value = "Password changed.\nYou've been signed out on other devices.";
     current.value = next.value = confirm.value = "";
   } catch {
     error.value = "Network error";

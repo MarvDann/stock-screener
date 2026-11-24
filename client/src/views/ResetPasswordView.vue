@@ -50,7 +50,7 @@ async function submit() {
     </div>
 
     <div v-else-if="!token" class="form">
-      <p class="form-error">This reset link is incomplete. Open the link from the email again, or request a new one.</p>
+      <p class="form-error">This reset link is incomplete.<br />Open the link from the email again, or request a new one.</p>
       <p class="form-footer"><RouterLink :to="{ name: 'forgot-password' }">Request a new link</RouterLink></p>
     </div>
 

@@ -145,6 +145,12 @@ describe("LoginView", () => {
     expect(wrapper.find(".form-footer").text()).toContain("Already have an account?");
   });
 
+  it("opens sign-up with the email filled in from an invite link", async () => {
+    const { wrapper } = await mountAt(LoginView, "/login?register=1&email=jane%40example.com");
+    expect(wrapper.find(".form-submit").text()).toBe("Register");
+    expect((wrapper.find('input[type="email"]').element as HTMLInputElement).value).toBe("jane@example.com");
+  });
+
   it("offers only the configured social providers", async () => {
     fetchAuthProviders.mockResolvedValue(["github"]);
     authClient.signIn.social.mockResolvedValue(ok());

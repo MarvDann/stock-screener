@@ -135,10 +135,17 @@ password, plus Google and GitHub when their credentials are set. Sessions are
 httpOnly cookies that last 7 days, extended while you use the app, and can
 be signed out server-side.
 
-- **Invite list:** only emails in `ALLOWED_EMAILS` can sign up or sign in
-  (any method). Taking an email off the list locks that account out at its
-  next sign-in. Sign-ups from other emails get the same "check your email"
-  response as real ones, so the list can't be probed.
+- **Invite list:** only invited emails can sign up or sign in (any method):
+  those in `ALLOWED_EMAILS` on the server (the owners, always allowed and
+  not revocable from the site) plus anyone an admin lets in from the
+  **Users** page (the `allowed_emails` table). With `ALLOWED_EMAILS` unset,
+  everyone is allowed. Sign-ups from other emails get the same "check your
+  email" response as real ones, so the list can't be probed.
+- **Letting people in and revoking access:** on the **Users** page, admins
+  can let in someone from the waiting list or invite any email; either emails
+  them a link that opens sign-up with their email filled in. **Revoke**
+  removes their access and deletes their sessions, so they're signed out at
+  once and can't sign in again until **Restore**d.
 - **Welcome page and waiting list:** anyone signed out (including after
   logging out) lands on `/welcome`, which shows the features, says plainly what the site doesn't do
   (no real-time quotes, alerts or trading; not financial advice) and has a
@@ -146,8 +153,7 @@ be signed out server-side.
   to the admins (at most 10 emails an hour), and listed on the **Users** page.
   Bots are kept out without a captcha: a hidden field only bots fill in, a
   signed token from page load that's only accepted after a few seconds, and a
-  per-address rate limit. Caught bots are told it worked but nothing is saved. To let someone in, add them
-  to `ALLOWED_EMAILS` and send an invite.
+  per-address rate limit. Caught bots are told it worked but nothing is saved.
 - **Privacy:** `/privacy` explains what's stored and who handles it
   (Hostinger, Resend, Google/GitHub). The only cookie is the essential
   session cookie and there are no trackers, so there's no cookie banner;

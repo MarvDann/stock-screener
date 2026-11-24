@@ -74,6 +74,21 @@ const MIGRATIONS: { name: string; up: (client: PoolClient) => Promise<void> }[] 
       `);
     },
   },
+  {
+    name: "003_allowed_emails",
+    async up(client) {
+      // Who an admin has let in from the Users page, on top of ALLOWED_EMAILS on the server.
+      // Removing a row revokes access. Emails are stored lowercased.
+      await client.query(`
+        CREATE TABLE allowed_emails (
+          email TEXT PRIMARY KEY,
+          added_by TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          invited_at TIMESTAMPTZ
+        );
+      `);
+    },
+  },
 ];
 
 /** Brings the database up to date: Better Auth's tables first (watchlists reference users), then the app's. */

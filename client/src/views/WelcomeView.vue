@@ -59,7 +59,7 @@ const FEATURES = [
   {
     icon: ListPlus,
     title: "Add your own tickers",
-    text: "Missing a stock? Add any ticker Yahoo Finance covers, from any market, and it joins the screens and charts.",
+    text: ["Missing a stock?", "Add any ticker Yahoo Finance covers, from any market, and it joins the screens and charts."],
   },
   {
     icon: CalendarDays,
@@ -143,8 +143,9 @@ async function submit() {
         <p class="eyebrow">Early access · invite only</p>
         <h1>Find the stocks that are leading the market</h1>
         <p class="lede">
-          StockWatch is a stock screener and charting site for swing and position traders. It screens US and UK stocks
-          for strong trends and breakout setups, and shows which sectors and industries are leading.
+          StockWatch is a stock screener and charting site for swing and position traders.<br />
+          It screens US and UK stocks for strong trends and breakout setups, and shows which sectors and industries
+          are leading.
         </p>
         <a href="#interest" class="btn-primary cta">Register your interest <ArrowRight :size="16" /></a>
       </div>
@@ -162,7 +163,10 @@ async function submit() {
         <article v-for="f in FEATURES" :key="f.title" class="feature">
           <component :is="f.icon" :size="20" class="feature-icon" />
           <h3>{{ f.title }}</h3>
-          <p>{{ f.text }}</p>
+          <!-- Each sentence on its own line. -->
+          <p>
+            <template v-for="(sentence, i) in [f.text].flat()" :key="i"><br v-if="i" />{{ sentence }}</template>
+          </p>
         </article>
       </div>
     </section>
@@ -170,7 +174,8 @@ async function submit() {
     <section class="section">
       <h2>What to expect</h2>
       <p class="section-lede">
-        StockWatch is an early, independent project, not a full trading platform. Here's what it does and doesn't do.
+        StockWatch is an early, independent project, not a full trading platform.<br />
+        Here's what it does and doesn't do.
       </p>
       <div class="expect">
         <div class="expect-col">
@@ -196,11 +201,15 @@ async function submit() {
       <div class="interest-card">
         <h2>Register your interest</h2>
         <template v-if="sent">
-          <p class="form-success">Thanks! You're on the list. We'll email you when there's a place for you.</p>
+          <p class="form-success">
+            Thanks! You're on the list.<br />
+            We'll email you when there's a place for you.
+          </p>
         </template>
         <template v-else>
           <p class="section-lede">
-            We're letting people in a few at a time. Leave your email and we'll send you an invite when there's room.
+            We're letting people in a few at a time.<br />
+            Leave your email and we'll invite you when there's room.
           </p>
           <form class="form" @submit.prevent="submit">
             <p v-if="error" class="form-error">{{ error }}</p>
@@ -221,8 +230,8 @@ async function submit() {
               {{ sending ? "Sending…" : "Register interest" }}
             </button>
             <p class="fine-print">
-              We'll only use your email to invite you. No newsletters.
-              <RouterLink to="/privacy">Privacy</RouterLink>
+              We'll only use your email to invite you.<br />
+              No newsletters. <RouterLink to="/privacy">Privacy</RouterLink>
             </p>
           </form>
         </template>
@@ -232,8 +241,8 @@ async function submit() {
 
     <footer class="footer">
       <p>
-        Market data from Yahoo Finance; prices may be delayed. StockWatch is for information only and isn't
-        financial advice.
+        Market data from Yahoo Finance; prices may be delayed.<br />
+        StockWatch is for information only and isn't financial advice.
       </p>
       <p><RouterLink to="/privacy">Privacy</RouterLink></p>
     </footer>
@@ -442,7 +451,7 @@ async function submit() {
 }
 .interest-card {
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;

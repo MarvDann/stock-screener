@@ -355,6 +355,11 @@ export interface UserSummary {
   email: string;
   emailVerified: boolean;
   isAdmin: boolean;
+  /**
+   * "server": always allowed (ALLOWED_EMAILS on the server), can't be revoked here.
+   * "allowed": let in from the Users page. "revoked": access taken away.
+   */
+  access: "server" | "allowed" | "revoked";
   /** "credential" (email and password), "google", "github". */
   signInMethods: string[];
   createdAt: string;
@@ -367,4 +372,10 @@ export interface InterestRequest {
   email: string;
   name: string;
   createdAt: string;
+}
+
+/** Someone let in from the Users page who hasn't created an account yet. */
+export interface PendingInvite {
+  email: string;
+  invitedAt: string;
 }

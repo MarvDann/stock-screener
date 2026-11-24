@@ -52,6 +52,8 @@ describe("/api/admin/users", () => {
     expect(users.map((u: { email: string }) => u.email)).toEqual(["admin@example.com", "member@example.com"]);
     expect(users[0]).toMatchObject({ id: admin.id, isAdmin: true, emailVerified: true, signInMethods: [] });
     expect(users[1]).toMatchObject({ isAdmin: false });
+    // ALLOWED_EMAILS isn't set in the tests, so the site is open and everyone's access comes from the server.
+    expect(users.map((u: { access: string }) => u.access)).toEqual(["server", "server"]);
     expect(new Date(users[1].lastActiveAt).getTime()).toBeGreaterThan(0);
     expect(new Date(users[1].createdAt).getTime()).toBeGreaterThan(0);
   });

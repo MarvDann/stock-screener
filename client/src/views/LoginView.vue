@@ -14,8 +14,9 @@ import {
 
 const router = useRouter();
 const route = useRoute();
-const isRegister = ref(false);
-const email = ref("");
+// The invite email links to /login?register=1&email=..., opening sign-up with their email filled in.
+const isRegister = ref(route.query.register === "1");
+const email = ref(typeof route.query.email === "string" ? route.query.email : "");
 const password = ref("");
 // An OAuth sign-in that failed comes back here with ?error=<code>.
 const error = ref(typeof route.query.error === "string" ? oauthErrorMessage(route.query.error) : "");
